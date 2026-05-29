@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="sv" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Klockis - Öva på klockan!</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts för en barnvänlig känsla -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Nunito', sans-serif;
+      background-color: #f0fdf4; /* Ljusgrön lekfull bakgrund */
+      overflow-x: hidden;
+    }
+    h1, h2, h3, .font-kids {
+      font-family: 'Fredoka', sans-serif;
+    }
+    /* Förhindra markering av text vid dragning av visare */
+    .no-select {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* Ta bort pilar på siffer-inputs */
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+    /* Enkel puls-effekt för mikrofonen */
+    @keyframes pulse-red {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    }
+    .mic-recording {
+      animation: pulse-red 1.5s infinite;
+      background-color: #ef4444 !important;
+      color: white !important;
+    }
+  </style>
+</head>
+<body class="no-select flex flex-col min-h-full bg-gradient-to-b from-sky-100 via-emerald-50 to-emerald-100 antialiased">
+
+  <!-- Header (Superkompakt) -->
+  <header class="bg-white/80 backdrop-blur-md shadow-sm py-1.5 px-4 sticky top-0 z-40">
+    <div class="max-w-5xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <span class="text-2xl">⏰</span>
+        <h1 class="text-xl font-bold text-emerald-600 tracking-wide">Klockis</h1>
+      </div>
+      
+      <!-- Stjärn- och framstegsmätare -->
+      <div class="flex items-center space-x-2">
+        <!-- Statistik i headern -->
+        <div class="flex items-center space-x-1 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 text-[11px] font-black text-emerald-800">
+          <span>📊</span>
+          <span id="header-stats">0 av 0 rätt</span>
+        </div>
+        
+        <!-- Stjärnmätare -->
+        <div class="flex items-center space-x-1 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200 text-xs">
+          <span>⭐</span>
+          <span id="star-count" class="font-black text-yellow-700">0</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-grow max-w-5xl w-full mx-auto p-2.5 md:p-3 flex flex-col gap-2.5">
+    
+    <!-- Övre fältet: Nivåer, Spellägen och Maskot -->
+    <section class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-stretch">
+      <!-- Svårighetsgrad -->
+      <div class="md:col-span-4 bg-white p-2.5 rounded-2xl shadow-sm border border-emerald-100 flex flex-col justify-center">
+        <h3 class="text-xs font-bold text-emerald-800 mb-1 flex items-center gap-1">
+          <span>🎯</span> Välj nivå:
+        </h3>
+        <div class="grid grid-cols-2 gap-1.5" id="level-container">
+          <button onclick="setLevel(1)" id="btn-lvl-1" class="py-1 px-1.5 rounded-xl border font-bold text-[11px] text-center transition-all bg-emerald-500 text-white border-emerald-600 shadow-sm">
+            Nivå 1<br><span class="text-[9px] font-normal leading-tight block">Hela timmar</span>
+          </button>
+          <button onclick="setLevel(2)" id="btn-lvl-2" class="py-1 px-1.5 rounded-xl border font-bold text-[11px] text-center transition-all bg-white border-gray-200 text-gray-700 hover:bg-emerald-50">
+            Nivå 2<br><span class="text-[9px] font-normal leading-tight block">Halva & hela</span>
+          </button>
+          <button onclick="setLevel(3)" id="btn-lvl-3" class="py-1 px-1.5 rounded-xl border font-bold text-[11px] text-center transition-all bg-white border-gray-200 text-gray-700 hover:bg-emerald-50">
+            Nivå 3<br><span class="text-[9px] font-normal leading-tight block">Kvartar</span>
+          </button>
+          <button onclick="setLevel(4)" id="btn-lvl-4" class="py-1 px-1.5 rounded-xl border font-bold text-[11px] text-center transition-all bg-white border-gray-200 text-gray-700 hover:bg-emerald-50">
+            Nivå 4<br><span class="text-[9px] font-normal leading-tight block">Hela klockan</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Spelläge -->
+      <div class="md:col-span-4 bg-white p-2.5 rounded-2xl shadow-sm border border-emerald-100 flex flex-col justify-center">
+        <h3 class="text-xs font-bold text-emerald-800 mb-1 flex items-center gap-1">
+          <span>🎮</span> Spelläge:
+        </h3>
+        <div class="grid grid-cols-2 gap-1">
+          <button onclick="setMode('explore')" id="btn-mode-explore" class="py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all bg-sky-500 text-white border-sky-600 shadow-sm flex items-center justify-center gap-1">
+            <span>🔍</span> Utforska
+          </button>
+          <button onclick="setMode('challenge')" id="btn-mode-challenge" class="py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all bg-white border-gray-200 text-gray-700 hover:bg-sky-50 flex items-center justify-center gap-1">
+            <span>🏆</span> Utmaning
+          </button>
+        </div>
+      </div>
+
+      <!-- Maskot & Instruktioner -->
+      <div class="md:col-span-4 bg-white p-2.5 rounded-2xl shadow-sm border border-emerald-100 flex items-center gap-2 relative overflow-hidden">
+        <span class="text-3xl animate-bounce">🦉</span>
+        <div id="klockis-speech-bubble" class="bg-emerald-50 border border-emerald-100 rounded-xl p-1.5 text-[11px] text-emerald-800 font-bold shadow-sm flex-grow transition-colors duration-200">
+          <span id="klockis-speech">Hej! Snurra på klockans visare för att se hur tiden ändras.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Super-utmaningskortet med Högtalare och inbyggd Framstegsmätare (Visas endast i Challenge-läge) -->
+    <section id="super-challenge-bar" class="hidden bg-gradient-to-r from-amber-400 to-orange-400 p-2 rounded-2xl shadow-sm flex flex-col sm:flex-row items-center justify-between gap-2 border border-amber-300">
+      <div class="flex items-center gap-2">
+        <button onclick="speakTargetTime()" class="flex items-center justify-center gap-1 bg-white hover:bg-slate-50 active:scale-95 transition-all text-slate-900 font-black px-4 py-1.5 rounded-xl shadow-sm text-xs border border-amber-200">
+          <span class="text-sm">🔊</span> Klicka här för att lyssna!
+        </button>
+        <span id="super-challenge-instruction" class="text-xs font-black text-amber-955">Lyssna på klockan först!</span>
+      </div>
+      <!-- Framstegsmätare -->
+      <div class="flex items-center gap-2 text-[11px] font-bold text-amber-955 bg-white/40 px-3 py-1 rounded-lg">
+        <span id="stats-verbal-summary">Kom igen, gör en uppgift!</span>
+        <!-- Kompakt framstegsmätare -->
+        <div class="w-12 sm:w-16 bg-amber-955/20 rounded-full h-1.5 overflow-hidden inline-block">
+          <div id="stats-progress-bar" class="bg-amber-600 h-full w-0 transition-all duration-500"></div>
+        </div>
+        <button onclick="resetStats()" class="text-[9px] bg-amber-100 hover:bg-amber-200 text-amber-900 px-1 py-0.5 rounded transition-all">🔄 Nollställ</button>
+      </div>
+    </section>
+
+    <!-- Verktygsfält för Utforskarläget (Slumpa & Tala klockslag) -->
+    <section id="explore-tools-bar" class="bg-white p-2 rounded-2xl shadow-sm flex flex-wrap items-center justify-center gap-3 border border-emerald-100 transition-all">
+      <span class="text-xs font-bold text-emerald-800">Utforska-verktyg:</span>
+      
+      <!-- Slumpa-knapp -->
+      <button onclick="randomizeAndSpeakExploreTime()" class="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black px-3 py-1.5 rounded-xl shadow-sm text-xs transition-all">
+        🎲 Slumpa & Lyssna!
+      </button>
+
+      <!-- Röststyrning (Tala till klockan) -->
+      <button id="btn-mic" onclick="toggleVoiceRecognition()" class="flex items-center gap-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-250 font-black px-3 py-1.5 rounded-xl shadow-sm text-xs transition-all cursor-pointer">
+        <span id="mic-icon">🎙️</span> <span id="mic-text">Tala till klockan</span>
+      </button>
+    </section>
+
+    <!-- Dynamisk Spelyta (Alltid snygg och centrerad i explore) -->
+    <section id="game-grid" class="grid grid-cols-1 gap-3 max-w-sm mx-auto items-center justify-center">
+      
+      <!-- KORT 1: STÄLL VISARNA (Analog klocka) -->
+      <div id="card-step-1" class="bg-white p-3 rounded-2xl shadow-sm border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300">
+        <!-- Status-bricka -->
+        <div class="w-full flex items-center justify-between mb-1">
+          <span class="text-xs font-black text-slate-800 flex items-center gap-1">
+            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-800 flex items-center justify-center text-[10px] font-black">1</span>
+            ⏰ Ställ klockan
+          </span>
+          <span id="badge-step-1" class="text-xs font-black text-emerald-600 hidden">✔️ Klar!</span>
+        </div>
+
+        <!-- Urtavlan -->
+        <div class="relative w-52 h-52 sm:w-56 sm:h-56 touch-none my-1">
+          <svg id="clock-svg" class="w-full h-full" viewBox="0 0 400 400">
+            <circle cx="203" cy="203" r="180" fill="rgba(0,0,0,0.04)" />
+            <circle cx="200" cy="200" r="180" fill="#f8fafc" stroke="#10b981" stroke-width="10" />
+            <circle cx="200" cy="200" r="168" fill="#ffffff" />
+            
+            <g id="minute-ticks"></g>
+            <g id="hour-numbers" class="font-kids text-2xl font-black fill-slate-800"></g>
+            <g id="quarter-ticks">
+              <rect x="196" y="25" width="8" height="15" rx="3" fill="#10b981" />
+              <rect x="360" y="196" width="15" height="8" rx="3" fill="#10b981" />
+              <rect x="196" y="360" width="8" height="15" rx="3" fill="#10b981" />
+              <rect x="25" y="196" width="15" height="8" rx="3" fill="#10b981" />
+            </g>
+
+            <!-- TIMVISARE -->
+            <g id="hour-hand-group" class="cursor-pointer">
+              <line x1="200" y1="200" x2="200" y2="105" stroke="transparent" stroke-width="30" stroke-linecap="round" />
+              <line x1="200" y1="200" x2="200" y2="110" stroke="#0f172a" stroke-width="10" stroke-linecap="round" />
+              <circle cx="200" cy="110" r="12" fill="#0f172a" stroke="#fff" stroke-width="2" />
+            </g>
+
+            <!-- MINUTVISARE -->
+            <g id="minute-hand-group" class="cursor-pointer">
+              <line x1="200" y1="200" x2="200" y2="65" stroke="transparent" stroke-width="30" stroke-linecap="round" />
+              <line x1="200" y1="200" x2="200" y2="70" stroke="#ef4444" stroke-width="7" stroke-linecap="round" />
+              <circle cx="200" cy="70" r="10" fill="#ef4444" stroke="#fff" stroke-width="2" />
+            </g>
+            <circle cx="200" cy="200" r="14" fill="#0f172a" />
+            <circle cx="200" cy="200" r="6" fill="#fff" />
+          </svg>
+        </div>
+
+        <!-- Digitalfönster & Talad tid -->
+        <div class="text-center w-full mt-1">
+          <div id="digital-clock-container" class="bg-slate-900 text-emerald-400 font-mono text-lg py-1 px-3 rounded-lg inline-block tracking-wider">
+            <span id="digital-clock">12:00</span>
+          </div>
+          <div class="mt-1 bg-amber-50 rounded-lg py-1 px-2 border border-amber-200 flex items-center justify-center gap-1.5">
+            <p id="spoken-clock-text" class="text-xs font-bold text-slate-800">Klockan är tolv</p>
+            <button onclick="speakCurrentClockTime()" class="bg-amber-200 hover:bg-amber-350 p-0.5 rounded text-xs transition-all shadow-sm" title="Lyssna">🔊</button>
+          </div>
+        </div>
+
+        <!-- Egen Kontrollknapp för steg 1 -->
+        <button id="btn-check-step-1" onclick="checkStep1()" class="w-full mt-2.5 py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
+          <span>🚀</span> Kontrollera visarna!
+        </button>
+      </div>
+
+      <!-- KORT 2: SKRIV MED SIFFROR -->
+      <div id="card-step-2" class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-between relative transition-all duration-300 opacity-40 pointer-events-none">
+        <!-- Status-bricka -->
+        <div class="w-full flex items-center justify-between mb-2">
+          <span class="text-xs font-black text-slate-800 flex items-center gap-1">
+            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-800 flex items-center justify-center text-[10px] font-black">2</span>
+            🔢 Skriv i siffror
+          </span>
+          <span id="badge-step-2" class="text-xs font-black text-emerald-600 hidden">✔️ Klar!</span>
+        </div>
+
+        <div class="flex-grow flex flex-col justify-center items-center w-full py-4">
+          <div class="flex items-center justify-center gap-2 mb-3">
+            <div class="flex flex-col items-center">
+              <input type="number" id="super-write-hour" min="0" max="23" placeholder="00" class="w-16 text-center py-2 px-1 text-2xl font-black rounded-xl border-2 border-emerald-150 focus:border-emerald-500 focus:outline-none bg-white">
+              <span class="text-[9px] text-slate-500 font-bold mt-1">Timme</span>
+            </div>
+            <span class="text-3xl font-black text-slate-400 -mt-5">:</span>
+            <div class="flex flex-col items-center">
+              <input type="number" id="super-write-minute" min="0" max="59" placeholder="00" class="w-16 text-center py-2 px-1 text-2xl font-black rounded-xl border-2 border-emerald-150 focus:border-emerald-500 focus:outline-none bg-white">
+              <span class="text-[9px] text-slate-500 font-bold mt-1">Minut</span>
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-400 text-center px-2">Skriv timme och minut med siffror (t.ex. 03 och 30).</p>
+        </div>
+
+        <!-- Egen Kontrollknapp för steg 2 -->
+        <button id="btn-check-step-2" onclick="checkStep2()" class="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
+          <span>🚀</span> Kontrollera siffrorna!
+        </button>
+      </div>
+
+      <!-- KORT 3: SKRIV MED ORD -->
+      <div id="card-step-3" class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-between relative transition-all duration-300 opacity-40 pointer-events-none">
+        <!-- Status-bricka -->
+        <div class="w-full flex items-center justify-between mb-2">
+          <span class="text-xs font-black text-slate-800 flex items-center gap-1">
+            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-800 flex items-center justify-center text-[10px] font-black">3</span>
+            ✍️ Skriv med ord
+          </span>
+          <span id="badge-step-3" class="text-xs font-black text-emerald-600 hidden">✔️ Klar!</span>
+        </div>
+
+        <div class="flex-grow flex flex-col justify-center items-center w-full py-4">
+          <div class="w-full max-w-xs flex flex-col items-center mb-3">
+            <input type="text" id="super-write-text-input" placeholder="Skriv klockslaget..." class="w-full text-center py-2 px-3 text-sm font-black rounded-xl border-2 border-emerald-150 focus:border-emerald-555 focus:outline-none bg-white">
+          </div>
+          <p class="text-[10px] text-slate-400 text-center px-2">Skriv klockslaget med bokstäver (t.ex. <span class="font-bold">halv fyra</span>).</p>
+        </div>
+
+        <!-- Egen Kontrollknapp för steg 3 -->
+        <button id="btn-check-step-3" onclick="checkStep3()" class="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
+          <span>🚀</span> Kontrollera bokstäverna!
+        </button>
+      </div>
+
+    </section>
+
+    <!-- Ledtrådar och tips nedtill -->
+    <div class="flex justify-center">
+      <button id="btn-hint" onclick="toggleHint()" class="text-xs font-bold text-emerald-750 bg-emerald-100/80 hover:bg-emerald-200 px-4 py-1.5 rounded-full border border-emerald-200 transition-all hidden">
+        💡 Visa ledtråd (Öppna digitaluret)
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Vacker, barnvänlig modal för Helskärms-aktivering -->
+  <div id="fullscreen-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl p-6 max-w-md w-full text-center border-4 border-sky-400 shadow-2xl">
+      <div class="text-5xl mb-3">🎙️🦉</div>
+      <h2 class="text-2xl font-black text-sky-600 mb-2">Prata med Klockis!</h2>
+      <p class="text-slate-655 font-bold mb-4 text-sm leading-relaxed">
+        För röststyrningen behöver vi köra spelet i en helt egen flik!
+      </p>
+
+      <div class="flex flex-col gap-2">
+        <button onclick="openInFullscreen()" class="w-full py-3.5 bg-gradient-to-r from-sky-400 to-emerald-500 hover:from-sky-500 hover:to-emerald-600 text-white font-extrabold text-lg rounded-2xl shadow-md active:scale-95 transition-all">
+          Ja, öppna i ny flik! 🚀
+        </button>
+        <button onclick="closeFullscreenModal()" class="w-full py-2 text-slate-400 hover:text-slate-600 font-bold text-xs transition-all">
+          Gå tillbaka
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Belöningsmodal -->
+  <div id="reward-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center border-4 border-yellow-400 shadow-xl transform scale-95 transition-all duration-300">
+      <div class="text-5xl mb-3" id="modal-emoji">🎉</div>
+      <h2 class="text-2xl font-black text-emerald-600 mb-1" id="modal-title">Superbra!</h2>
+      <p class="text-slate-650 font-bold mb-4 text-sm" id="modal-desc">Du svarade helt perfekt!</p>
+      
+      <div class="bg-slate-100 rounded-xl p-2 mb-4 border border-slate-200 font-bold text-slate-700 text-xs">
+         📊 Just nu har du <span id="modal-stats-ratio" class="text-emerald-600">0 av 0</span> rätt!
+      </div>
+
+      <div class="flex justify-center gap-1 mb-4 text-2xl" id="modal-stars">
+        ⭐ ⭐ ⭐
+      </div>
+      <button onclick="closeModal()" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-lg rounded-xl shadow-md transition-transform active:scale-95">
+        Nästa utmaning! 🚀
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // --- STATE & VARIABLER ---
+    let currentHour = 12; 
+    let currentMinute = 0; 
+    let selectedLevel = 1;
+    let gameMode = 'explore'; 
+    let targetTime = { hour: 12, minute: 0 }; 
+    let stars = 0;
+    
+    let correctAnswers = 0;
+    let totalAttempts = 0;
+    let currentTaskAlreadyAttempted = false; 
+
+    let isDragging = null; 
+    let isDraggingDisabled = false; 
+    let showHintActive = false; 
+
+    let recognition = null;
+    let isRecording = false;
+
+    let superStep = 1;
+
+    const hourWords = {
+      1: "ett", 2: "två", 3: "tre", 4: "fyra", 5: "fem", 6: "sex",
+      7: "sju", 8: "åtta", 9: "nio", 10: "tio", 11: "elva", 12: "tolv",
+      0: "tolv" 
+    };
+
+    // --- LJUDEFFEKTER VIA WEB AUDIO API ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      if (type === 'success') {
+        const now = audioCtx.currentTime;
+        osc.frequency.setValueAtTime(261.63, now); // C4
+        osc.frequency.setValueAtTime(329.63, now + 0.1); // E4
+        osc.frequency.setValueAtTime(392.00, now + 0.2); // G4
+        osc.frequency.setValueAtTime(523.25, now + 0.3); // C5
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.start(now);
+        osc.stop(now + 0.5);
+      } else if (type === 'fail') {
+        const now = audioCtx.currentTime;
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.3);
+        gainNode.gain.setValueAtTime(0.15, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      } else if (type === 'click') {
+        const now = audioCtx.currentTime;
+        osc.frequency.setValueAtTime(1000, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+        gainNode.gain.setValueAtTime(0.05, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      }
+    }
+
+    // --- RÖSTUPPLÄSNING (TALANDE KLOCKA) ---
+    function speakText(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'sv-SE';
+        
+        const voices = window.speechSynthesis.getVoices();
+        const svVoice = voices.find(v => v.lang.includes('sv'));
+        if (svVoice) {
+          utterance.voice = svVoice;
+        }
+        
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    function speakCurrentClockTime() {
+      const isMasked = (gameMode === 'challenge') && !showHintActive;
+      const timeToSpeak = isMasked 
+        ? getSpokenSwedishTime(currentHour, currentMinute, true)
+        : document.getElementById('spoken-clock-text').textContent;
+      
+      speakText(timeToSpeak);
+    }
+
+    // --- HJÄLPFUNKTIONER ---
+    
+    // Konverterar klockslag till talat svenskt format
+    function getSpokenSwedishTime(h, m, includePrefix = false) {
+      let hour12 = h % 12;
+      if (hour12 === 0) hour12 = 12;
+
+      let nextHour = (hour12 % 12) + 1;
+      const roundedMinutes = Math.round(m / 5) * 5;
+
+      let timeStr = "";
+
+      if (roundedMinutes === 0 || roundedMinutes === 60) {
+        const finalHour = roundedMinutes === 60 ? nextHour : hour12;
+        timeStr = hourWords[finalHour];
+      } else {
+        switch (roundedMinutes) {
+          case 5:
+            timeStr = `fem över ${hourWords[hour12]}`;
+            break;
+          case 10:
+            timeStr = `tio över ${hourWords[hour12]}`;
+            break;
+          case 15:
+            timeStr = `kvart över ${hourWords[hour12]}`;
+            break;
+          case 20:
+            timeStr = `tjugo över ${hourWords[hour12]}`;
+            break;
+          case 25:
+            timeStr = `fem i halv ${hourWords[nextHour]}`;
+            break;
+          case 30:
+            timeStr = `halv ${hourWords[nextHour]}`;
+            break;
+          case 35:
+            timeStr = `fem över halv ${hourWords[nextHour]}`;
+            break;
+          case 40:
+            timeStr = `tjugo i ${hourWords[nextHour]}`;
+            break;
+          case 45:
+            timeStr = `kvart i ${hourWords[nextHour]}`;
+            break;
+          case 50:
+            timeStr = `tio i ${hourWords[nextHour]}`;
+            break;
+          case 55:
+            timeStr = `fem i ${hourWords[nextHour]}`;
+            break;
+          default:
+            timeStr = `ungefär ${hourWords[hour12]}`;
+        }
+      }
+
+      if (includePrefix) {
+        return `Klockan är ${timeStr}`;
+      } else {
+        return timeStr.charAt(0).toUpperCase() + timeStr.slice(1);
+      }
+    }
+
+    function speakTargetTime() {
+      const phrase = `Ställ klockan på ${getSpokenSwedishTime(targetTime.hour, targetTime.minute, false).toLowerCase()}`;
+      speakText(phrase);
+    }
+
+    // Slumpar fram ett klockslag anpassat till vald svårighetsgrad
+    function getRandomTime() {
+      let h = Math.floor(Math.random() * 12) + 1;
+      let m = 0;
+
+      if (selectedLevel === 1) {
+        m = 0;
+      } else if (selectedLevel === 2) {
+        m = Math.random() < 0.5 ? 0 : 30;
+      } else if (selectedLevel === 3) {
+        const choices = [0, 15, 30, 45];
+        m = choices[Math.floor(Math.random() * choices.length)];
+      } else {
+        m = Math.floor(Math.random() * 12) * 5; 
+      }
+
+      return { hour: h, minute: m };
+    }
+
+    function generateNewTask() {
+      targetTime = getRandomTime();
+      showHintActive = false;
+      currentTaskAlreadyAttempted = false; 
+
+      resetSpeechBubble();
+
+      const btnHint = document.getElementById('btn-hint');
+
+      if (btnHint) {
+        btnHint.textContent = "💡 Visa ledtråd (Öppna digitaluret)";
+        btnHint.className = "mt-2 text-xs font-bold text-emerald-700 bg-emerald-100/80 hover:bg-emerald-200 px-3 py-1.5 rounded-full border border-emerald-200 transition-all hidden";
+      }
+
+      if (gameMode === 'challenge') {
+        superStep = 1;
+        updateStepCardsUI();
+        if (btnHint) btnHint.classList.remove('hidden');
+
+        currentHour = (targetTime.hour + 4) % 12 || 12;
+        currentMinute = (targetTime.minute + 25) % 60;
+        
+        if (selectedLevel === 1) {
+          currentMinute = 0;
+        } else if (selectedLevel === 2) {
+          currentMinute = 30;
+        } else if (selectedLevel === 3) {
+          currentMinute = 15;
+        } else {
+          currentMinute = Math.round(currentMinute / 5) * 5 % 60;
+        }
+        
+        updateClockUI();
+
+        const superHour = document.getElementById('super-write-hour');
+        const superMinute = document.getElementById('super-write-minute');
+        const superTextInput = document.getElementById('super-write-text-input');
+        
+        if (superHour) superHour.value = '';
+        if (superMinute) superMinute.value = '';
+        if (superTextInput) superTextInput.value = '';
+
+        setTimeout(() => speakTargetTime(), 400);
+
+      } else {
+        isDraggingDisabled = false;
+        updateClockUI();
+      }
+    }
+
+    // Kollar av om sidan är inbäddad i en iframe (t.ex. Google Sites)
+    function checkIfEmbedded() {
+      return (window.self !== window.top);
+    }
+
+    // --- INITIALISERING ---
+    window.onload = function() {
+      buildClockFace();
+      setupDragAndDrop();
+      setupSpeechRecognition();
+
+      setLevel(1);
+      setMode('explore');
+      updateStatsUI();
+    };
+
+    function buildClockFace() {
+      const minutesContainer = document.getElementById('minute-ticks');
+      const hoursContainer = document.getElementById('hour-numbers');
+      if (!minutesContainer || !hoursContainer) return;
+
+      minutesContainer.innerHTML = '';
+      hoursContainer.innerHTML = '';
+
+      for (let m = 0; m < 60; m++) {
+        if (m % 5 !== 0) {
+          const angle = (m * 6) * Math.PI / 180;
+          const x1 = 200 + 155 * Math.sin(angle);
+          const y1 = 200 - 155 * Math.cos(angle);
+          const x2 = 200 + 160 * Math.sin(angle);
+          const y2 = 200 - 160 * Math.cos(angle);
+          
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("x1", x1);
+          line.setAttribute("y1", y1);
+          line.setAttribute("x2", x2);
+          line.setAttribute("y2", y2);
+          line.setAttribute("stroke", "#cbd5e1");
+          line.setAttribute("stroke-width", "2");
+          line.setAttribute("stroke-linecap", "round");
+          minutesContainer.appendChild(line);
+        }
+      }
+
+      for (let h = 1; h <= 12; h++) {
+        const angle = (h * 30) * Math.PI / 180;
+        const x = 200 + 135 * Math.sin(angle);
+        const y = 200 - 135 * Math.cos(angle) + 8;
+
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", x);
+        text.setAttribute("y", y);
+        text.setAttribute("text-anchor", "middle");
+        text.textContent = h;
+        
+        if (h % 3 === 0) {
+          text.setAttribute("class", "fill-emerald-600 font-extrabold text-2xl");
+        }
+        hoursContainer.appendChild(text);
+      }
+    }
+
+    function updateClockUI() {
+      const minuteAngle = currentMinute * 6;
+      const minHand = document.getElementById('minute-hand-group');
+      if (minHand) {
+        minHand.setAttribute('transform', `rotate(${minuteAngle} 200 200)`);
+      }
+
+      const hourAngle = (currentHour % 12) * 30 + currentMinute * 0.5;
+      const hrHand = document.getElementById('hour-hand-group');
+      if (hrHand) {
+        hrHand.setAttribute('transform', `rotate(${hourAngle} 200 200)`);
+      }
+
+      const isMasked = (gameMode === 'challenge') && !showHintActive;
+      const digitalClock = document.getElementById('digital-clock');
+      const spokenText = document.getElementById('spoken-clock-text');
+
+      if (isMasked) {
+        if (digitalClock) digitalClock.textContent = "?? : ??";
+        if (spokenText) spokenText.textContent = "Klockis gömmer svaret! 🤫";
+      } else {
+        const formattedHour = String(currentHour).padStart(2, '0');
+        const formattedMinute = String(currentMinute).padStart(2, '0');
+        if (digitalClock) digitalClock.textContent = `${formattedHour}:${formattedMinute}`;
+        if (spokenText) spokenText.textContent = getSpokenSwedishTime(currentHour, currentMinute, true);
+      }
+    }
+
+    function updateStatsUI() {
+      const headerStats = document.getElementById('header-stats');
+      if (headerStats) {
+        headerStats.textContent = `${correctAnswers} av ${totalAttempts} rätt`;
+      }
+
+      const statsSummary = document.getElementById('stats-verbal-summary');
+      const progressBar = document.getElementById('stats-progress-bar');
+
+      if (totalAttempts === 0) {
+        if (statsSummary) statsSummary.textContent = "Gör en uppgift!";
+        if (progressBar) {
+          progressBar.style.width = "0%";
+          progressBar.className = "bg-amber-600 h-full w-0 transition-all duration-500";
+        }
+      } else {
+        if (statsSummary) {
+          statsSummary.innerHTML = `Resultat: <span class="font-extrabold text-emerald-855">${correctAnswers}</span> av <span class="font-extrabold text-slate-800">${totalAttempts}</span> rätt!`;
+        }
+        
+        const percentage = Math.round((correctAnswers / totalAttempts) * 100);
+        if (progressBar) {
+          progressBar.style.width = `${percentage}%`;
+
+          if (percentage < 50) {
+            progressBar.className = "bg-red-400 h-full transition-all duration-500";
+          } else if (percentage < 80) {
+            progressBar.className = "bg-amber-400 h-full transition-all duration-500";
+          } else {
+            progressBar.className = "bg-emerald-500 h-full transition-all duration-500";
+          }
+        }
+      }
+
+      const modalStatsRatio = document.getElementById('modal-stats-ratio');
+      if (modalStatsRatio) {
+        modalStatsRatio.textContent = `${correctAnswers} av ${totalAttempts}`;
+      }
+    }
+
+    function resetStats() {
+      playSound('click');
+      correctAnswers = 0;
+      totalAttempts = 0;
+      updateStatsUI();
+      resetSpeechBubble();
+    }
+
+    function resetSpeechBubble() {
+      const bubble = document.getElementById('klockis-speech-bubble');
+      const speech = document.getElementById('klockis-speech');
+      
+      if (bubble) {
+        bubble.classList.remove('border-red-300', 'bg-red-50');
+      }
+      
+      if (speech) {
+        if (gameMode === 'explore') {
+          speech.textContent = "Härligt! Dra i klockvisarna och se hur klockan rör sig. Testa en annan svårighetsgrad!";
+        } else if (gameMode === 'challenge') {
+          speech.textContent = "Lyssna noga på Klockis och genomför de tre stegen!";
+        }
+      }
+    }
+
+    function toggleHint() {
+      showHintActive = !showHintActive;
+      playSound('click');
+      updateClockUI();
+      
+      const btnHint = document.getElementById('btn-hint');
+      if (btnHint) {
+        if (showHintActive) {
+          btnHint.textContent = "🙈 Göm ledtråd";
+          btnHint.classList.remove('bg-emerald-100', 'text-emerald-700', 'border-emerald-300');
+          btnHint.classList.add('bg-amber-100', 'text-amber-800', 'border-amber-400');
+        } else {
+          btnHint.textContent = "💡 Visa ledtråd (Öppna digitaluret)";
+          btnHint.classList.remove('bg-amber-100', 'text-amber-800', 'border-amber-400');
+          btnHint.classList.add('bg-emerald-100', 'text-emerald-700', 'border-emerald-300');
+        }
+      }
+    }
+
+    // --- INTERAKTIV DRAGNING AV VISARE ---
+    function setupDragAndDrop() {
+      const clockSvg = document.getElementById('clock-svg');
+      if (!clockSvg) return;
+      
+      const handleStart = (e) => {
+        if (gameMode === 'challenge' && isDraggingDisabled) return; 
+        
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        const rect = clockSvg.getBoundingClientRect();
+        const x = clientX - rect.left - rect.width / 2;
+        const y = clientY - rect.top - rect.height / 2;
+        
+        const dist = Math.sqrt(x*x + y*y);
+        if (dist < 30) return;
+
+        const angleRad = Math.atan2(x, -y);
+        let angleDeg = angleRad * 180 / Math.PI;
+        if (angleDeg < 0) angleDeg += 360;
+
+        const currentMinAngle = currentMinute * 6;
+        const currentHourAngle = (currentHour % 12) * 30 + currentMinute * 0.5;
+
+        const diffMin = Math.min(Math.abs(angleDeg - currentMinAngle), 360 - Math.abs(angleDeg - currentMinAngle));
+        const diffHour = Math.min(Math.abs(angleDeg - currentHourAngle), 360 - Math.abs(angleDeg - currentHourAngle));
+
+        if (diffMin < diffHour) {
+          isDragging = 'minute';
+        } else {
+          isDragging = 'hour';
+        }
+        
+        handleMove(e);
+      };
+
+      const handleMove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        const rect = clockSvg.getBoundingClientRect();
+        const x = clientX - rect.left - rect.width / 2;
+        const y = clientY - rect.top - rect.height / 2;
+
+        const angleRad = Math.atan2(x, -y);
+        let angleDeg = angleRad * 180 / Math.PI;
+        if (angleDeg < 0) angleDeg += 360;
+
+        if (isDragging === 'minute') {
+          let min = Math.round(angleDeg / 6) % 60;
+          
+          if (selectedLevel === 1) {
+            min = 0; 
+          } else if (selectedLevel === 2) {
+            min = Math.round(min / 30) * 30 % 60; 
+          } else if (selectedLevel === 3) {
+            min = Math.round(min / 15) * 15 % 60; 
+          } else {
+            min = Math.round(min / 5) * 5 % 60; 
+          }
+
+          if (min !== currentMinute) {
+            currentMinute = min;
+            playSound('click');
+            updateClockUI();
+          }
+        } else if (isDragging === 'hour') {
+          let hr = Math.round(angleDeg / 30);
+          if (hr === 0) hr = 12;
+
+          if (hr !== currentHour) {
+            currentHour = hr;
+            playSound('click');
+            updateClockUI();
+          }
+        }
+      };
+
+      const handleEnd = () => {
+        isDragging = null;
+      };
+
+      clockSvg.addEventListener('mousedown', handleStart);
+      window.addEventListener('mousemove', handleMove);
+      window.addEventListener('mouseup', handleEnd);
+
+      clockSvg.addEventListener('touchstart', handleStart, { passive: false });
+      window.addEventListener('touchmove', handleMove, { passive: false });
+      window.addEventListener('touchend', handleEnd);
+    }
+
+    function setLevel(lvl) {
+      selectedLevel = lvl;
+      playSound('click');
+      
+      for (let i = 1; i <= 4; i++) {
+        const btn = document.getElementById(`btn-lvl-${i}`);
+        if (btn) {
+          if (i === lvl) {
+            btn.className = "py-1 px-1.5 rounded-xl border font-bold text-[11px] text-center transition-all bg-emerald-500 text-white border-emerald-600 shadow-sm";
+          } else {
+            btn.className = "py-1 px-1.5 rounded-xl border font-bold text-[11px] text-center transition-all bg-white border-gray-200 text-gray-700 hover:bg-emerald-50";
+          }
+        }
+      }
+
+      generateNewTask();
+    }
+
+    function setMode(mode) {
+      gameMode = mode;
+      playSound('click');
+      showHintActive = false; 
+
+      const btnHint = document.getElementById('btn-hint');
+      const challengeBar = document.getElementById('super-challenge-bar');
+      const exploreBar = document.getElementById('explore-tools-bar');
+      const gameGrid = document.getElementById('game-grid');
+      const cardStep2 = document.getElementById('card-step-2');
+      const cardStep3 = document.getElementById('card-step-3');
+
+      if (isRecording) {
+        stopVoiceRecognition();
+      }
+
+      // Hantera layout-växlingar
+      if (mode === 'explore') {
+        if (challengeBar) challengeBar.classList.add('hidden');
+        if (exploreBar) exploreBar.classList.remove('hidden');
+        if (btnHint) btnHint.classList.add('hidden');
+        
+        // Dölj kort 2 & 3 i utforska-läget så klockan visas i full skärm
+        if (cardStep2) cardStep2.classList.add('hidden');
+        if (cardStep3) cardStep3.classList.add('hidden');
+        if (gameGrid) gameGrid.className = "grid grid-cols-1 gap-3 max-w-sm mx-auto items-center justify-center";
+        
+        const btnCheck1 = document.getElementById('btn-check-step-1');
+        if (btnCheck1) btnCheck1.classList.add('hidden');
+        
+        resetSpeechBubble();
+        updateClockUI();
+      } else if (mode === 'challenge') {
+        if (challengeBar) challengeBar.classList.remove('hidden');
+        if (exploreBar) exploreBar.classList.add('hidden');
+        if (btnHint) btnHint.classList.remove('hidden');
+        
+        // Visa alla 3 kort i en trestegskanal
+        if (cardStep2) cardStep2.classList.remove('hidden');
+        if (cardStep3) cardStep3.classList.remove('hidden');
+        if (gameGrid) gameGrid.className = "grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch";
+        
+        const btnCheck1 = document.getElementById('btn-check-step-1');
+        if (btnCheck1) btnCheck1.classList.remove('hidden');
+
+        generateNewTask();
+      }
+    }
+
+    function updateStepCardsUI() {
+      const c1 = document.getElementById('card-step-1');
+      const c2 = document.getElementById('card-step-2');
+      const c3 = document.getElementById('card-step-3');
+
+      const b1 = document.getElementById('badge-step-1');
+      const b2 = document.getElementById('badge-step-2');
+      const b3 = document.getElementById('badge-step-3');
+
+      const btn1 = document.getElementById('btn-check-step-1');
+      const btn2 = document.getElementById('btn-check-step-2');
+      const btn3 = document.getElementById('btn-check-step-3');
+
+      const instr = document.getElementById('super-challenge-instruction');
+
+      if (c1) c1.className = "bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-between relative transition-all duration-300 opacity-40 pointer-events-none";
+      if (c2) c2.className = "bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-between relative transition-all duration-300 opacity-40 pointer-events-none";
+      if (c3) c3.className = "bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-between relative transition-all duration-300 opacity-40 pointer-events-none";
+
+      if (b1) b1.classList.add('hidden');
+      if (b2) b2.classList.add('hidden');
+      if (b3) b3.classList.add('hidden');
+
+      if (btn1) btn1.className = "w-full mt-2.5 py-1.5 px-3 bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-all pointer-events-none";
+      if (btn2) btn2.className = "w-full py-1.5 px-3 bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-all pointer-events-none";
+      if (btn3) btn3.className = "w-full py-1.5 px-3 bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-all pointer-events-none";
+
+      if (superStep === 1) {
+        if (c1) c1.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (btn1) btn1.className = "w-full mt-2.5 py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
+        if (instr) instr.textContent = "⏰ Steg 1: Ställ in visarna på rätt klockslag!";
+        isDraggingDisabled = false; 
+      } else if (superStep === 2) {
+        if (c1) c1.className = "bg-white/80 p-3 rounded-2xl border border-emerald-200 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (b1) b1.classList.remove('hidden');
+        isDraggingDisabled = true; 
+
+        if (c2) c2.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (btn2) btn2.className = "w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
+        if (instr) instr.textContent = "🔢 Steg 2: Skriv in klockslaget med siffror!";
+        const inputHour = document.getElementById('super-write-hour');
+        if (inputHour) inputHour.focus();
+      } else if (superStep === 3) {
+        if (c1) c1.className = "bg-white/80 p-3 rounded-2xl border border-emerald-200 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (c2) c2.className = "bg-white/80 p-3 rounded-2xl border border-emerald-200 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (b1) b1.classList.remove('hidden');
+        if (b2) b2.classList.remove('hidden');
+        isDraggingDisabled = true; 
+
+        if (c3) c3.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (btn3) btn3.className = "w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
+        if (instr) instr.textContent = "✍️ Steg 3: Skriv klockslaget med bokstäver!";
+        const inputWords = document.getElementById('super-write-text-input');
+        if (inputWords) inputWords.focus();
+      }
+    }
+
+    function checkWordAnswer(typedText, targetH, targetM) {
+      let typed = typedText.toLowerCase().trim();
+      typed = typed.replace(/\s+/g, ' '); 
+      typed = typed.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, ""); 
+
+      if (typed.startsWith("klockan är ")) {
+        typed = typed.substring(11).trim();
+      } else if (typed.startsWith("klockan är")) {
+        typed = typed.substring(10).trim();
+      } else if (typed.startsWith("den är ")) {
+        typed = typed.substring(7).trim();
+      } else if (typed.startsWith("den är")) {
+        typed = typed.substring(6).trim();
+      }
+
+      const correctRaw = getSpokenSwedishTime(targetH, targetM, false).toLowerCase().trim();
+      
+      let correctWithDigits = correctRaw;
+      const wordsToDigits = {
+        "ett": "1", "två": "2", "tre": "3", "fyra": "4", "fem": "5", "sex": "6",
+        "sju": "7", "åtta": "8", "nio": "9", "tio": "10", "elva": "11", "tolv": "12"
+      };
+      
+      for (const [word, digit] of Object.entries(wordsToDigits)) {
+        const regex = new RegExp(`\\b${word}\\b`, 'g');
+        correctWithDigits = correctWithDigits.replace(regex, digit);
+      }
+
+      let correctWith24hDigits = correctRaw;
+      const wordsTo24hDigits = {
+        "ett": "13", "två": "14", "tre": "15", "fyra": "16", "fem": "17", "sex": "18",
+        "sju": "19", "åtta": "20", "nio": "21", "tio": "22", "elva": "23", "tolv": "12"
+      };
+      
+      for (const [word, digit] of Object.entries(wordsTo24hDigits)) {
+        const regex = new RegExp(`\\b${word}\\b`, 'g');
+        correctWith24hDigits = correctWith24hDigits.replace(regex, digit);
+      }
+
+      return (typed === correctRaw || typed === correctWithDigits || typed === correctWith24hDigits);
+    }
+
+    // --- INDIVIDUELLA KONTROLLFUNKTIONER ---
+
+    // Kontrollera Kort 1 (Visarna)
+    function checkStep1() {
+      if (gameMode !== 'challenge' || superStep !== 1) return;
+
+      if (!currentTaskAlreadyAttempted) {
+        totalAttempts++;
+        currentTaskAlreadyAttempted = true;
+      }
+
+      const isCorrectHour = (currentHour % 12) === (targetTime.hour % 12);
+      const isCorrectMin = currentMinute === targetTime.minute;
+
+      if (isCorrectHour && isCorrectMin) {
+        playSound('success');
+        speakText("Snyggt ställt! Nu ska du skriva klockslaget med siffror.");
+        resetSpeechBubble();
+        superStep = 2;
+        updateStepCardsUI();
+        updateStatsUI();
+      } else {
+        updateStatsUI();
+        showErrorFeedback("Oj, det blev inte rätt. Försök igen!");
+      }
+    }
+
+    // Kontrollera Kort 2 (Siffrorna)
+    function checkStep2() {
+      if (gameMode !== 'challenge' || superStep !== 2) return;
+
+      const typedHourStr = document.getElementById('super-write-hour').value.trim();
+      const typedMinStr = document.getElementById('super-write-minute').value.trim();
+
+      if (typedHourStr === '' || typedMinStr === '') {
+        showErrorFeedback("Fyll i både timme och minut först! 😉");
+        return;
+      }
+
+      const typedHour = parseInt(typedHourStr, 10);
+      const typedMin = parseInt(typedMinStr, 10);
+      const targetHour12 = targetTime.hour % 12 === 0 ? 12 : targetTime.hour % 12;
+
+      const isHourCorrect = (typedHour % 12) === (targetHour12 % 12);
+      const isMinCorrect = typedMin === targetTime.minute;
+
+      if (isHourCorrect && isMinCorrect) {
+        playSound('success');
+        speakText("Perfekt! Skriv nu klockslaget med bokstäver.");
+        resetSpeechBubble();
+        superStep = 3;
+        updateStepCardsUI();
+      } else {
+        showErrorFeedback("Oj, det blev inte rätt. Försök igen!");
+      }
+    }
+
+    // Kontrollera Kort 3 (Bokstäverna)
+    function checkStep3() {
+      if (gameMode !== 'challenge' || superStep !== 3) return;
+
+      const typedText = document.getElementById('super-write-text-input').value.trim();
+      if (typedText === '') {
+        showErrorFeedback("Skriv klockslaget med ord först! ✍️");
+        return;
+      }
+
+      if (checkWordAnswer(typedText, targetTime.hour, targetTime.minute)) {
+        correctAnswers++;
+        updateStatsUI();
+        triggerWin();
+      } else {
+        showErrorFeedback("Oj, det blev inte rätt. Försök igen!");
+      }
+    }
+
+    function triggerWin() {
+      playSound('success');
+      stars += 1;
+      const starCount = document.getElementById('star-count');
+      if (starCount) starCount.textContent = stars;
+
+      const randomCongrats = ["Helt fantastiskt!", "Du är en stjärna!", "Superbra jobbat!", "Klockrent!", "Snyggt svarat!"];
+      const randomEmojis = ["🎉", "🌟", "🎈", "🏆", "🧸"];
+      
+      const chosenCongrats = randomCongrats[Math.floor(Math.random() * randomCongrats.length)];
+      const modalTitle = document.getElementById('modal-title');
+      const modalEmoji = document.getElementById('modal-emoji');
+      const modalDesc = document.getElementById('modal-desc');
+
+      if (modalTitle) modalTitle.textContent = chosenCongrats;
+      if (modalEmoji) modalEmoji.textContent = randomEmojis[Math.floor(Math.random() * randomEmojis.length)];
+      if (modalDesc) modalDesc.textContent = `Du klarade hela utmaningen galant!`;
+
+      speakText(`${chosenCongrats} Du klarade klockan!`);
+
+      const modal = document.getElementById('reward-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+          modal.firstElementChild.classList.remove('scale-95');
+          modal.firstElementChild.classList.add('scale-100');
+        }, 10);
+      }
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('reward-modal');
+      if (modal) {
+        modal.firstElementChild.classList.remove('scale-100');
+        modal.firstElementChild.classList.add('scale-95');
+        setTimeout(() => {
+          modal.classList.add('hidden');
+          generateNewTask();
+        }, 200);
+      }
+    }
+
+    // --- RÖSTSTYRNING & RÖSTIGENKÄNNING ---
+    function setupSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        const micBtn = document.getElementById('btn-mic');
+        if (micBtn) micBtn.classList.add('hidden');
+        return;
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.lang = 'sv-SE';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        isRecording = true;
+        updateMicButtonUI();
+        const speech = document.getElementById('klockis-speech');
+        if (speech) speech.textContent = "Jag lyssnar... Säg t.ex. 'halv tre'!";
+        speakText("Säg ett klockslag nu, så ställer jag visarna!");
+      };
+
+      recognition.onresult = (event) => {
+        const resultText = event.results[0][0].transcript.toLowerCase();
+        console.log("Röstigenkänning resultat: ", resultText);
+        parseVoiceCommand(resultText);
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Röstigenkänning fel: ", event.error);
+        stopVoiceRecognition();
+        
+        // Fånga upp behörighetsfel
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          const isEmbedded = checkIfEmbedded();
+          if (isEmbedded) {
+            openFullscreenModal();
+          } else {
+            // Om vi redan är i helskärm/toppflik men mikrofonen är blockerad i webbläsaren!
+            showMicBlockedInstructions();
+          }
+        } else {
+          const speech = document.getElementById('klockis-speech');
+          if (speech) speech.textContent = "Oj, jag hörde dig inte riktigt. Klicka på mikrofonen och testa igen!";
+        }
+      };
+
+      recognition.onend = () => {
+        stopVoiceRecognition();
+      };
+    }
+
+    // Visar tydliga instruktioner inuti pratbubblan hur man låser upp mikrofonen i webbläsaren
+    function showMicBlockedInstructions() {
+      const speech = document.getElementById('klockis-speech');
+      const bubble = document.getElementById('klockis-speech-bubble');
+      
+      if (speech) {
+        speech.innerHTML = "🔒 <span class='text-red-650 font-black'>Mikrofonen är blockerad!</span><br><span class='text-[10px] font-normal block mt-1 leading-tight text-slate-700'>Klicka på hänglåset uppe vid adressfältet i din webbläsare och tillåt mikrofonen. Klicka sedan på mikrofonknappen igen!</span>";
+      }
+      if (bubble) {
+        bubble.classList.add('border-red-300', 'bg-red-50');
+      }
+      speakText("Mikrofonen är blockerad. Klicka på hänglåset bredvid adressfältet och tillåt mikrofonen!");
+    }
+
+    // Öppnar rutan för helskärmshantering
+    function openFullscreenModal() {
+      const modal = document.getElementById('fullscreen-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+    }
+
+    function closeFullscreenModal() {
+      const modal = document.getElementById('fullscreen-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+    }
+
+    // Öppnar appen i en ren, ostörd toppflik där mikrofonen är tillåten!
+    function openInFullscreen() {
+      closeFullscreenModal();
+      // Öppnar helt enkelt nuvarande URL i en ny flik utan Google Sites inbäddnings-iframe
+      window.open(window.location.href, "_blank");
+    }
+
+    function toggleVoiceRecognition() {
+      if (!recognition) {
+        setupSpeechRecognition();
+      }
+
+      if (!recognition) {
+        const isEmbedded = checkIfEmbedded();
+        if (isEmbedded) {
+          openFullscreenModal();
+        } else {
+          showMicBlockedInstructions();
+        }
+        return;
+      }
+
+      // Om appen körs inbäddad i en iframe (t.ex. på en Google Site), kan mikrofonen aldrig startas direkt.
+      // Då hoppar vi direkt till helskärms-modalen för en smidig och pedagogisk användarupplevelse!
+      const isEmbedded = checkIfEmbedded();
+      if (isEmbedded) {
+        openFullscreenModal();
+        return;
+      }
+
+      if (isRecording) {
+        recognition.stop();
+      } else {
+        try {
+          recognition.start();
+        } catch (e) {
+          showMicBlockedInstructions();
+        }
+      }
+    }
+
+    function stopVoiceRecognition() {
+      isRecording = false;
+      updateMicButtonUI();
+    }
+
+    function updateMicButtonUI() {
+      const micBtn = document.getElementById('btn-mic');
+      const micIcon = document.getElementById('mic-icon');
+      const micText = document.getElementById('mic-text');
+      
+      if (!micBtn) return;
+
+      if (isRecording) {
+        micBtn.classList.add('mic-recording');
+        if (micIcon) micIcon.textContent = "🔴";
+        if (micText) micText.textContent = "Lyssnar...";
+      } else {
+        micBtn.classList.remove('mic-recording');
+        if (micIcon) micIcon.textContent = "🎙️";
+        if (micText) micText.textContent = "Tala till klockan";
+      }
+    }
+
+    function parseVoiceCommand(text) {
+      let command = text.trim();
+      
+      command = command.replace(/^klockan är\s+/i, '');
+      command = command.replace(/^den är\s+/i, '');
+      command = command.replace(/^ställ klockan på\s+/i, '');
+      command = command.replace(/\.$/, ''); 
+
+      const speech = document.getElementById('klockis-speech');
+
+      const digitalColonRegex = /(\d{1,2})[\s:]+(\d{2})/;
+      const digitalMatch = command.match(digitalColonRegex);
+      if (digitalMatch) {
+        let h = parseInt(digitalMatch[1], 10) % 12;
+        let m = parseInt(digitalMatch[2], 10);
+        if (h === 0) h = 12;
+        if (m < 60) {
+          setAndAnnounceClock(h, m, `Du sa "${text}". Jag ställde klockan på ${h}:${String(m).padStart(2, '0')}!`);
+          return;
+        }
+      }
+
+      const svWordsToNumbers = {
+        "ett": 1, "en": 1, "två": 2, "tre": 3, "fyra": 4, "fem": 5, "sex": 6, "sju": 7, "åtta": 8, "nine": 9, "nio": 9,
+        "tio": 10, "elva": 11, "tolv": 12, "tretton": 1, "fjorton": 2, "femton": 3, "sexton": 4, "sjutton": 5,
+        "arton": 6, "nitton": 7, "tjugo": 8, "tjugoett": 9, "tjugotvå": 10, "tjugotre": 11, "dygnet": 12, "noll": 12
+      };
+
+      function extractHour(word) {
+        if (!word) return null;
+        if (svWordsToNumbers[word] !== undefined) return svWordsToNumbers[word];
+        const num = parseInt(word, 10);
+        if (!isNaN(num)) {
+          let h = num % 12;
+          return h === 0 ? 12 : h;
+        }
+        return null;
+      }
+
+      const words = command.split(/\s+/);
+      let targetH = 12;
+      let targetM = 0;
+      let parsed = false;
+      
+      if (command.includes("halv") && (command.includes("över") || command.includes(" i "))) {
+        const isOver = command.includes("över");
+        const idx = words.indexOf("halv");
+        const nextWord = words[idx + 1];
+        const hour = extractHour(nextWord);
+        if (hour !== null) {
+          targetH = hour - 1;
+          if (targetH === 0) targetH = 12;
+          targetM = isOver ? 35 : 25;
+          parsed = true;
+        }
+      }
+      else if (command.includes("halv")) {
+        const idx = words.indexOf("halv");
+        const nextWord = words[idx + 1];
+        const hour = extractHour(nextWord);
+        if (hour !== null) {
+          targetH = hour - 1;
+          if (targetH === 0) targetH = 12;
+          targetM = 30;
+          parsed = true;
+        }
+      }
+      else if (command.includes("över")) {
+        const idx = words.indexOf("över");
+        const prevWord = words[idx - 1];
+        const nextWord = words[idx + 1];
+        
+        let min = 0;
+        if (prevWord === "kvart") min = 15;
+        else if (prevWord === "fem") min = 5;
+        else if (prevWord === "tio") min = 10;
+        else if (prevWord === "tjugo") min = 20;
+        else min = parseInt(prevWord, 10) || 0;
+
+        const hour = extractHour(nextWord);
+        if (hour !== null && min > 0) {
+          targetH = hour;
+          targetM = min;
+          parsed = true;
+        }
+      }
+      else if (command.includes(" i ")) {
+        const idx = words.indexOf("i");
+        const prevWord = words[idx - 1];
+        const nextWord = words[idx + 1];
+        
+        let min = 0;
+        if (prevWord === "kvart") min = 15;
+        else if (prevWord === "fem") min = 5;
+        else if (prevWord === "tio") min = 10;
+        else if (prevWord === "tjugo") min = 20;
+        else min = parseInt(prevWord, 10) || 0;
+
+        const hour = extractHour(nextWord);
+        if (hour !== null && min > 0) {
+          targetH = hour;
+          targetM = 60 - min;
+          parsed = true;
+        }
+      }
+      else {
+        for (let i = 0; i < words.length; i++) {
+          const hour = extractHour(words[i]);
+          if (hour !== null) {
+            targetH = hour;
+            targetM = 0;
+            parsed = true;
+            break;
+          }
+        }
+      }
+
+      if (parsed) {
+        setAndAnnounceClock(targetH, targetM, `Häftigt! Du sa "${text}". Klockis ställer klockan på ${getSpokenSwedishTime(targetH, targetM, false).toLowerCase()}!`);
+      } else {
+        if (speech) speech.textContent = `Jag förstod nästan! Du sa "${text}". Försök säga t.ex. "halv fyra" eller "tio i nio".`;
+        speakText("Det förstod jag inte riktigt, kan du prova att säga det igen?");
+      }
+    }
+
+    function setAndAnnounceClock(h, m, speechTextToDisplay) {
+      currentHour = h;
+      currentMinute = m;
+      updateClockUI();
+      playSound('success');
+
+      const speech = document.getElementById('klockis-speech');
+      if (speech) speech.textContent = speechTextToDisplay;
+      
+      speakText(speechTextToDisplay.split('.')[1] || speechTextToDisplay);
+    }
+  </script>
+</body>
+</html>
