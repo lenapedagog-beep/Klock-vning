@@ -248,7 +248,7 @@
         </div>
 
         <!-- Egen Kontrollknapp för steg 2 -->
-        <button id="btn-check-step-2" onclick="checkStep2()" class="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
+        <button id="btn-check-step-2" onclick="checkStep2()" class="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
           <span>🚀</span> Kontrollera siffrorna!
         </button>
       </div>
@@ -272,7 +272,7 @@
         </div>
 
         <!-- Egen Kontrollknapp för steg 3 -->
-        <button id="btn-check-step-3" onclick="checkStep3()" class="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
+        <button id="btn-check-step-3" onclick="checkStep3()" class="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
           <span>🚀</span> Kontrollera bokstäverna!
         </button>
       </div>
@@ -294,7 +294,7 @@
       <div class="text-5xl mb-3">🎙️🦉</div>
       <h2 class="text-2xl font-black text-sky-600 mb-2">Prata med Klockis!</h2>
       <p class="text-slate-655 font-bold mb-4 text-sm leading-relaxed">
-        För röststyrningen behöver vi köra spelet i en helt egen flik!
+        För röststyrningen behöver vi köra spelet i en helt egen helskärmsflik!
       </p>
 
       <div class="flex flex-col gap-2">
@@ -329,6 +329,14 @@
   </div>
 
   <script>
+    // =========================================================================
+    //  AUTOMATISK HÄMTNING AV URL VIA GOOGLE APPS SCRIPT MALLSYNTES (Tack vare template-evaluering!)
+    // =========================================================================
+    // Den här raden använder Apps Scripts unika syntax för att stoppa in rätt URL automatiskt vid laddning!
+    const GOOGLE_WEBAPP_URL = "<?= webAppUrl ?>"; 
+    const IS_FORCED_FULLSCREEN_FROM_SERVER = "<?= isFullscreen ?>";
+    // =========================================================================
+
     // --- STATE & VARIABLER ---
     let currentHour = 12; 
     let currentMinute = 0; 
@@ -347,13 +355,38 @@
 
     let recognition = null;
     let isRecording = false;
+    let dynamicWebAppUrl = ""; // Hämtas automatiskt via servern i mån av möjlighet
 
     let superStep = 1;
 
+    // Sifferord för tidsavläsning
     const hourWords = {
       1: "ett", 2: "två", 3: "tre", 4: "fyra", 5: "fem", 6: "sex",
       7: "sju", 8: "åtta", 9: "nio", 10: "tio", 11: "elva", 12: "tolv",
       0: "tolv" 
+    };
+
+    // Stödmappning för röstigenkänning
+    const svWordsToNumbers = {
+      "ett": 1, "en": 1, "ettan": 1,
+      "två": 2, "tvåan": 2,
+      "tre": 3, "trean": 3,
+      "fyra": 4, "fyran": 4,
+      "fem": 5, "femman": 5,
+      "sex": 6, "sexan": 6,
+      "sju": 7, "sjuan": 7,
+      "åtta": 8, "åttan": 8,
+      "nio": 9, "nian": 9,
+      "tio": 10, "tian": 10,
+      "elva": 11, "elvan": 11,
+      "tolv": 12, "tolvan": 12,
+      "tretton": 1, "fjorton": 2, "femton": 3, "sexton": 4, "sjutton": 5, 
+      "arton": 6, "nitton": 7, "tjugo": 8, "tjugoett": 9, "tjugotvå": 10, "tjugotre": 11, "dygnet": 12, "noll": 12
+    };
+
+    const svWordsToMinutes = {
+      "fem": 5, "tio": 10, "kvart": 15, "tjugo": 20, "tjugofem": 25, 
+      "halv": 30, "trettio": 30, "trettiofem": 35, "fyrtio": 40, "fyrtiofem": 45, "femtio": 50, "femtiofem": 55
     };
 
     // --- LJUDEFFEKTER VIA WEB AUDIO API ---
@@ -396,6 +429,15 @@
         gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
         osc.start(now);
         osc.stop(now + 0.05);
+      } else if (type === 'beep_start') {
+        // En kort glad signalton som talar om för barnet att börja tala direkt
+        const now = audioCtx.currentTime;
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.setValueAtTime(880.00, now + 0.08); // A5
+        gainNode.gain.setValueAtTime(0.08, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
       }
     }
 
@@ -426,7 +468,7 @@
       speakText(timeToSpeak);
     }
 
-    // --- HJÄLPFUNKTIONER ---
+    // --- HJÄLPFUNKTIONER (Definieras tidigt för att undvika ReferenceError) ---
     
     // Konverterar klockslag till talat svenskt format
     function getSpokenSwedishTime(h, m, includePrefix = false) {
@@ -562,9 +604,14 @@
       }
     }
 
-    // Kollar av om sidan är inbäddad i en iframe (t.ex. Google Sites)
+    // Kollar av om sidan är inbäddad, med hänsyn till om vi har forcerat helskärm i URL:en
     function checkIfEmbedded() {
-      return (window.self !== window.top);
+      if (typeof IS_FORCED_FULLSCREEN_FROM_SERVER !== 'undefined' && IS_FORCED_FULLSCREEN_FROM_SERVER === 'true') {
+        return false;
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      const isForcedFullscreen = urlParams.get('fullscreen') === 'true' || window.location.hash === '#fullscreen';
+      return (window.self !== window.top) && !isForcedFullscreen;
     }
 
     // --- INITIALISERING ---
@@ -688,7 +735,7 @@
 
       const modalStatsRatio = document.getElementById('modal-stats-ratio');
       if (modalStatsRatio) {
-        modalStatsRatio.textContent = `${correctAnswers} av ${totalAttempts}`;
+        modalStatsRatio.textContent = `${correctAnswers} decline ${totalAttempts}`;
       }
     }
 
@@ -898,6 +945,17 @@
       }
     }
 
+    function randomizeAndSpeakExploreTime() {
+      const randTime = getRandomTime();
+      currentHour = randTime.hour;
+      currentMinute = randTime.minute;
+      updateClockUI();
+      playSound('click');
+      setTimeout(() => {
+        speakCurrentClockTime();
+      }, 250);
+    }
+
     function updateStepCardsUI() {
       const c1 = document.getElementById('card-step-1');
       const c2 = document.getElementById('card-step-2');
@@ -927,7 +985,7 @@
 
       if (superStep === 1) {
         if (c1) c1.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
-        if (btn1) btn1.className = "w-full mt-2.5 py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
+        if (btn1) btn1.className = "w-full mt-2.5 py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
         if (instr) instr.textContent = "⏰ Steg 1: Ställ in visarna på rätt klockslag!";
         isDraggingDisabled = false; 
       } else if (superStep === 2) {
@@ -936,7 +994,7 @@
         isDraggingDisabled = true; 
 
         if (c2) c2.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
-        if (btn2) btn2.className = "w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
+        if (btn2) btn2.className = "w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
         if (instr) instr.textContent = "🔢 Steg 2: Skriv in klockslaget med siffror!";
         const inputHour = document.getElementById('super-write-hour');
         if (inputHour) inputHour.focus();
@@ -948,7 +1006,7 @@
         isDraggingDisabled = true; 
 
         if (c3) c3.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
-        if (btn3) btn3.className = "w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
+        if (btn3) btn3.className = "w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
         if (instr) instr.textContent = "✍️ Steg 3: Skriv klockslaget med bokstäver!";
         const inputWords = document.getElementById('super-write-text-input');
         if (inputWords) inputWords.focus();
@@ -1133,9 +1191,13 @@
       recognition.onstart = () => {
         isRecording = true;
         updateMicButtonUI();
+        
+        // Uppdatera skriftlig instruktion i bubblan direkt
         const speech = document.getElementById('klockis-speech');
         if (speech) speech.textContent = "Jag lyssnar... Säg t.ex. 'halv tre'!";
-        speakText("Säg ett klockslag nu, så ställer jag visarna!");
+        
+        // Spela upp signalton istället för talad instruktion för att förhindra eko
+        playSound('beep_start');
       };
 
       recognition.onresult = (event) => {
@@ -1205,6 +1267,11 @@
     }
 
     function toggleVoiceRecognition() {
+      // VIKTIGT: Stoppa pågående tal och nollställ talsyntesen innan mikrofonen startar
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+
       if (!recognition) {
         setupSpeechRecognition();
       }
@@ -1220,7 +1287,6 @@
       }
 
       // Om appen körs inbäddad i en iframe (t.ex. på en Google Site), kan mikrofonen aldrig startas direkt.
-      // Då hoppar vi direkt till helskärms-modalen för en smidig och pedagogisk användarupplevelse!
       const isEmbedded = checkIfEmbedded();
       if (isEmbedded) {
         openFullscreenModal();
@@ -1230,11 +1296,14 @@
       if (isRecording) {
         recognition.stop();
       } else {
-        try {
-          recognition.start();
-        } catch (e) {
-          showMicBlockedInstructions();
-        }
+        // En minimal tidsfördröjning garanterar att talsyntesen har stängts av helt innan mikrofonen öppnas
+        setTimeout(() => {
+          try {
+            recognition.start();
+          } catch (e) {
+            showMicBlockedInstructions();
+          }
+        }, 50);
       }
     }
 
@@ -1261,16 +1330,51 @@
       }
     }
 
+    // Extrahörsel för timmar
+    function extractHour(word) {
+      if (!word) return null;
+      const cleaned = word.toLowerCase().trim();
+      if (svWordsToNumbers[cleaned] !== undefined) return svWordsToNumbers[cleaned];
+      const num = parseInt(cleaned, 10);
+      if (!isNaN(num)) {
+        let h = num % 12;
+        return h === 0 ? 12 : h;
+      }
+      return null;
+    }
+
+    // Extrahörsel för minuter
+    function extractMinutes(word) {
+      if (!word) return null;
+      const cleaned = word.toLowerCase().trim();
+      if (svWordsToMinutes[cleaned] !== undefined) return svWordsToMinutes[cleaned];
+      const num = parseInt(cleaned, 10);
+      if (!isNaN(num) && num >= 0 && num < 60) return num;
+      return null;
+    }
+
+    // Huvudsaklig smart rösttolknings-algoritm (Buggfixad för tidsartiklar!)
     function parseVoiceCommand(text) {
-      let command = text.trim();
+      // 1. Tvätta texten och gör allt till små bokstäver
+      let command = text.toLowerCase().trim();
+      command = command.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim(); 
       
-      command = command.replace(/^klockan är\s+/i, '');
-      command = command.replace(/^den är\s+/i, '');
-      command = command.replace(/^ställ klockan på\s+/i, '');
-      command = command.replace(/\.$/, ''); 
+      // 2. Ta bort vanliga inledningsfraser
+      command = command.replace(/^(klockan är|den är|ställ klockan på|ställ in klockan på|kan du ställa klockan på)\s+/i, '');
+      
+      // 3. KRUCIAL BUGGFIX: Ersätt artiklar som "en kvart" / "ett par" så att inte "en" eller "ett" misstolkas som timmen "ett" (1).
+      command = command.replace(/\ben kvart\b/g, "kvart");
+      command = command.replace(/\bett kvart\b/g, "kvart");
+      command = command.replace(/\ben timme\b/g, "");
 
       const speech = document.getElementById('klockis-speech');
+      const words = command.split(/\s+/).filter(w => w.length > 0);
+      
+      let targetH = 12;
+      let targetM = 0;
+      let parsed = false;
 
+      // Matcha digitala mönster som "14:30" eller "12 25"
       const digitalColonRegex = /(\d{1,2})[\s:]+(\d{2})/;
       const digitalMatch = command.match(digitalColonRegex);
       if (digitalMatch) {
@@ -1283,101 +1387,101 @@
         }
       }
 
-      const svWordsToNumbers = {
-        "ett": 1, "en": 1, "två": 2, "tre": 3, "fyra": 4, "fem": 5, "sex": 6, "sju": 7, "åtta": 8, "nine": 9, "nio": 9,
-        "tio": 10, "elva": 11, "tolv": 12, "tretton": 1, "fjorton": 2, "femton": 3, "sexton": 4, "sjutton": 5,
-        "arton": 6, "nitton": 7, "tjugo": 8, "tjugoett": 9, "tjugotvå": 10, "tjugotre": 11, "dygnet": 12, "noll": 12
-      };
+      // --- SVENSKA KLOCKSLAGS-ALGORITMER ---
 
-      function extractHour(word) {
-        if (!word) return null;
-        if (svWordsToNumbers[word] !== undefined) return svWordsToNumbers[word];
-        const num = parseInt(word, 10);
-        if (!isNaN(num)) {
-          let h = num % 12;
-          return h === 0 ? 12 : h;
-        }
-        return null;
-      }
-
-      const words = command.split(/\s+/);
-      let targetH = 12;
-      let targetM = 0;
-      let parsed = false;
-      
-      if (command.includes("halv") && (command.includes("över") || command.includes(" i "))) {
-        const isOver = command.includes("över");
-        const idx = words.indexOf("halv");
-        const nextWord = words[idx + 1];
-        const hour = extractHour(nextWord);
-        if (hour !== null) {
-          targetH = hour - 1;
-          if (targetH === 0) targetH = 12;
-          targetM = isOver ? 35 : 25;
+      // 1. Fem i halv / Fem över halv (t.ex. "fem i halv tre")
+      const halvIdx = words.indexOf("halv");
+      if (halvIdx !== -1 && halvIdx > 1 && halvIdx < words.length - 1) {
+        const rel = words[halvIdx - 1]; // "i" eller "över"
+        const prev = words[halvIdx - 2]; // Bör vara "fem"
+        const hourWord = words[halvIdx + 1];
+        const h = extractHour(hourWord);
+        
+        if (h !== null && (rel === "i" || rel === "över" || rel === "på") && prev === "fem") {
+          targetH = h - 1;
+          if (targetH <= 0) targetH = 12;
+          targetM = (rel === "i" || rel === "på") ? 25 : 35;
           parsed = true;
         }
       }
-      else if (command.includes("halv")) {
-        const idx = words.indexOf("halv");
-        const nextWord = words[idx + 1];
-        const hour = extractHour(nextWord);
-        if (hour !== null) {
-          targetH = hour - 1;
-          if (targetH === 0) targetH = 12;
+
+      // 2. Halv (t.ex. "halv fyra")
+      if (!parsed && halvIdx !== -1 && halvIdx < words.length - 1) {
+        const hourWord = words[halvIdx + 1];
+        const h = extractHour(hourWord);
+        if (h !== null) {
+          targetH = h - 1;
+          if (targetH <= 0) targetH = 12;
           targetM = 30;
           parsed = true;
         }
       }
-      else if (command.includes("över")) {
-        const idx = words.indexOf("över");
-        const prevWord = words[idx - 1];
-        const nextWord = words[idx + 1];
-        
-        let min = 0;
-        if (prevWord === "kvart") min = 15;
-        else if (prevWord === "fem") min = 5;
-        else if (prevWord === "tio") min = 10;
-        else if (prevWord === "tjugo") min = 20;
-        else min = parseInt(prevWord, 10) || 0;
 
-        const hour = extractHour(nextWord);
-        if (hour !== null && min > 0) {
-          targetH = hour;
-          targetM = min;
-          parsed = true;
-        }
-      }
-      else if (command.includes(" i ")) {
-        const idx = words.indexOf("i");
-        const prevWord = words[idx - 1];
-        const nextWord = words[idx + 1];
-        
-        let min = 0;
-        if (prevWord === "kvart") min = 15;
-        else if (prevWord === "fem") min = 5;
-        else if (prevWord === "tio") min = 10;
-        else if (prevWord === "tjugo") min = 20;
-        else min = parseInt(prevWord, 10) || 0;
-
-        const hour = extractHour(nextWord);
-        if (hour !== null && min > 0) {
-          targetH = hour;
-          targetM = 60 - min;
-          parsed = true;
-        }
-      }
-      else {
-        for (let i = 0; i < words.length; i++) {
-          const hour = extractHour(words[i]);
-          if (hour !== null) {
-            targetH = hour;
-            targetM = 0;
+      // 3. Över (t.ex. "kvart över tre", "tio över sju")
+      if (!parsed) {
+        const overIdx = words.indexOf("över") !== -1 ? words.indexOf("över") : words.indexOf("over");
+        if (overIdx > 0 && overIdx < words.length - 1) {
+          const minWord = words[overIdx - 1];
+          const hourWord = words[overIdx + 1];
+          const m = extractMinutes(minWord);
+          const h = extractHour(hourWord);
+          if (h !== null && m !== null) {
+            targetH = h;
+            targetM = m;
             parsed = true;
-            break;
           }
         }
       }
 
+      // 4. I / På (t.ex. "kvart i tre", "fem i tolv")
+      if (!parsed) {
+        const iIdx = words.indexOf("i") !== -1 ? words.indexOf("i") : words.indexOf("på");
+        // Säkerställ att vi inte krockar med "fem i halv" som hanterades tidigare
+        if (iIdx > 0 && iIdx < words.length - 1 && words[iIdx + 1] !== "halv") {
+          const minWord = words[iIdx - 1];
+          const hourWord = words[iIdx + 1];
+          const m = extractMinutes(minWord);
+          const h = extractHour(hourWord);
+          if (h !== null && m !== null) {
+            targetH = h - 1;
+            if (targetH <= 0) targetH = 12;
+            targetM = 60 - m;
+            parsed = true;
+          }
+        }
+      }
+
+      // 5. Bara timme angiven / Digital stil utan sambandsord (t.ex. "klockan tre", "tio trettio")
+      if (!parsed) {
+        const nums = [];
+        for (let i = 0; i < words.length; i++) {
+          if (words[i] === "och" || words[i] === "minuter") continue;
+          
+          const h = extractHour(words[i]);
+          if (h !== null) {
+            nums.push({ val: h, type: 'hour' });
+          } else {
+            const m = extractMinutes(words[i]);
+            if (m !== null) {
+              nums.push({ val: m, type: 'minute' });
+            }
+          }
+        }
+        
+        if (nums.length >= 2) {
+          // Första talet är timme, andra är minut
+          targetH = nums[0].val;
+          targetM = nums[1].val;
+          parsed = true;
+        } else if (nums.length === 1) {
+          // Endast ett heltal (t.ex. "tre") -> Tolka som hel timme
+          targetH = nums[0].val;
+          targetM = 0;
+          parsed = true;
+        }
+      }
+
+      // Skicka resultatet till klockan
       if (parsed) {
         setAndAnnounceClock(targetH, targetM, `Häftigt! Du sa "${text}". Klockis ställer klockan på ${getSpokenSwedishTime(targetH, targetM, false).toLowerCase()}!`);
       } else {
