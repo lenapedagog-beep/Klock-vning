@@ -219,7 +219,7 @@
         </div>
 
         <!-- Egen Kontrollknapp för steg 1 -->
-        <button id="btn-check-step-1" onclick="checkStep1()" class="w-full mt-2.5 py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
+        <button id="btn-check-step-1" onclick="checkStep1()" class="w-full mt-2.5 py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
           <span>🚀</span> Kontrollera visarna!
         </button>
       </div>
@@ -275,7 +275,7 @@
         </div>
 
         <!-- Egen Kontrollknapp för steg 3 -->
-        <button id="btn-check-step-3" onclick="checkStep3()" class="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
+        <button id="btn-check-step-3" onclick="checkStep3()" class="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-555 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1.5">
           <span>🚀</span> Kontrollera bokstäverna!
         </button>
       </div>
@@ -324,7 +324,7 @@
                 <span class="text-[9px] text-slate-500 font-bold mt-0.5">Minut</span>
               </div>
             </div>
-            <button onclick="checkLevel5Digits()" class="w-full py-1.5 px-3 bg-sky-450 hover:bg-sky-500 active:scale-95 text-slate-950 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1">
+            <button onclick="checkLevel5Digits()" class="w-full py-1.5 px-3 bg-sky-450 hover:bg-sky-500 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all flex items-center justify-center gap-1">
               <span>🚀</span> Kontrollera siffrorna!
             </button>
           </div>
@@ -1313,6 +1313,8 @@
 
       // Uppdatera systemets layout för valda nivåer/lägen
       updateLayoutForLevelAndMode();
+      // Säkerställ att urtavlan genereras korrekt innan en ny uppgift ritas upp
+      buildClockFace();
       generateNewTask();
     }
 
@@ -1325,6 +1327,7 @@
       }
 
       updateLayoutForLevelAndMode();
+      buildClockFace(); // Säkerställ att klockans siffer- och minutmarkeringar byggs upp på nytt
     }
   </script>
 </body>
