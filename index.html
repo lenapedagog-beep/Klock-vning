@@ -137,7 +137,7 @@
       <div class="flex items-center gap-2 text-[11px] font-bold text-amber-955 bg-white/40 px-3 py-1 rounded-lg">
         <span id="stats-verbal-summary">Kom igen, gör en uppgift!</span>
         <!-- Kompakt framstegsmätare -->
-        <div class="w-12 sm:w-16 bg-amber-955/20 rounded-full h-1.5 overflow-hidden inline-block">
+        <div class="w-12 sm:w-16 bg-amber-600/20 rounded-full h-1.5 overflow-hidden inline-block">
           <div id="stats-progress-bar" class="bg-amber-600 h-full w-0 transition-all duration-500"></div>
         </div>
         <button onclick="resetStats()" class="text-[9px] bg-amber-100 hover:bg-amber-200 text-amber-900 px-1 py-0.5 rounded transition-all">🔄 Nollställ</button>
@@ -395,6 +395,75 @@
     const IS_FORCED_FULLSCREEN_FROM_SERVER = "<?= isFullscreen ?>";
     // =========================================================================
 
+    // --- GRUNDLÄGGANDE LJUD- OCH TALFUNKTIONER (Definieras först för att undvika ReferenceError vid tidiga anrop) ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      if (type === 'success') {
+        const now = audioCtx.currentTime;
+        osc.frequency.setValueAtTime(261.63, now); // C4
+        osc.frequency.setValueAtTime(329.63, now + 0.1); // E4
+        osc.frequency.setValueAtTime(392.00, now + 0.2); // G4
+        osc.frequency.setValueAtTime(523.25, now + 0.3); // C5
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.start(now);
+        osc.stop(now + 0.5);
+      } else if (type === 'fail') {
+        const now = audioCtx.currentTime;
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.3);
+        gainNode.gain.setValueAtTime(0.15, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      } else if (type === 'click') {
+        const now = audioCtx.currentTime;
+        osc.frequency.setValueAtTime(1000, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+        gainNode.gain.setValueAtTime(0.05, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      } else if (type === 'beep_start') {
+        // En kort glad signalton som talar om för barnet att börja tala direkt
+        const now = audioCtx.currentTime;
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.setValueAtTime(880.00, now + 0.08); // A5
+        gainNode.gain.setValueAtTime(0.08, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      }
+    }
+
+    function speakText(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'sv-SE';
+        
+        const voices = window.speechSynthesis.getVoices();
+        const svVoice = voices.find(v => v.lang.includes('sv'));
+        if (svVoice) {
+          utterance.voice = svVoice;
+        }
+        
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
     // --- STATE & VARIABLER ---
     let currentHour = 12; 
     let currentMinute = 0; 
@@ -447,75 +516,268 @@
       "halv": 30, "trettio": 30, "trettiofem": 35, "fyrtio": 40, "fyrtiofem": 45, "femtio": 50, "femtiofem": 55
     };
 
-    // --- LJUDEFFEKTER VIA WEB AUDIO API ---
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // --- GRUNDLÄGGANDE HJÄLPFUNKTIONER (Definieras i toppen för att undvika ReferenceError) ---
 
-    function playSound(type) {
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+    // Skapar och placerar ut alla siffror 1–12 och minutstreck på urtavlan
+    function buildClockFace() {
+      const minutesContainer = document.getElementById('minute-ticks');
+      const hoursContainer = document.getElementById('hour-numbers');
+      if (!minutesContainer || !hoursContainer) return;
+
+      minutesContainer.innerHTML = '';
+      hoursContainer.innerHTML = '';
+
+      for (let m = 0; m < 60; m++) {
+        if (m % 5 !== 0) {
+          const angle = (m * 6) * Math.PI / 180;
+          const x1 = 200 + 155 * Math.sin(angle);
+          const y1 = 200 - 155 * Math.cos(angle);
+          const x2 = 200 + 160 * Math.sin(angle);
+          const y2 = 200 - 160 * Math.cos(angle);
+          
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute("x1", x1);
+          line.setAttribute("y1", y1);
+          line.setAttribute("x2", x2);
+          line.setAttribute("y2", y2);
+          line.setAttribute("stroke", "#cbd5e1");
+          line.setAttribute("stroke-width", "2");
+          line.setAttribute("stroke-linecap", "round");
+          minutesContainer.appendChild(line);
+        }
+      }
+
+      for (let h = 1; h <= 12; h++) {
+        const angle = (h * 30) * Math.PI / 180;
+        const x = 200 + 135 * Math.sin(angle);
+        const y = 200 - 135 * Math.cos(angle) + 8;
+
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", x);
+        text.setAttribute("y", y);
+        text.setAttribute("text-anchor", "middle");
+        text.textContent = h;
+        
+        if (h % 3 === 0) {
+          text.setAttribute("class", "fill-emerald-600 font-extrabold text-2xl");
+        }
+        hoursContainer.appendChild(text);
+      }
+    }
+
+    // Återställer Klockis pratbubbla till standardinställningen
+    function resetSpeechBubble() {
+      const bubble = document.getElementById('klockis-speech-bubble');
+      const speech = document.getElementById('klockis-speech');
+      
+      if (bubble) {
+        bubble.classList.remove('border-red-300', 'bg-red-50');
       }
       
-      const osc = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      osc.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
-      if (type === 'success') {
-        const now = audioCtx.currentTime;
-        osc.frequency.setValueAtTime(261.63, now); // C4
-        osc.frequency.setValueAtTime(329.63, now + 0.1); // E4
-        osc.frequency.setValueAtTime(392.00, now + 0.2); // G4
-        osc.frequency.setValueAtTime(523.25, now + 0.3); // C5
-        gainNode.gain.setValueAtTime(0.1, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-        osc.start(now);
-        osc.stop(now + 0.5);
-      } else if (type === 'fail') {
-        const now = audioCtx.currentTime;
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(180, now);
-        osc.frequency.exponentialRampToValueAtTime(120, now + 0.3);
-        gainNode.gain.setValueAtTime(0.15, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
-        osc.start(now);
-        osc.stop(now + 0.35);
-      } else if (type === 'click') {
-        const now = audioCtx.currentTime;
-        osc.frequency.setValueAtTime(1000, now);
-        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-        gainNode.gain.setValueAtTime(0.05, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now);
-        osc.stop(now + 0.05);
-      } else if (type === 'beep_start') {
-        // En kort glad signalton som talar om för barnet att börja tala direkt
-        const now = audioCtx.currentTime;
-        osc.frequency.setValueAtTime(587.33, now); // D5
-        osc.frequency.setValueAtTime(880.00, now + 0.08); // A5
-        gainNode.gain.setValueAtTime(0.08, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-        osc.start(now);
-        osc.stop(now + 0.2);
-      }
-    }
-
-    // --- RÖSTUPPLÄSNING (TALANDE KLOCKA) ---
-    function speakText(text) {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'sv-SE';
-        
-        const voices = window.speechSynthesis.getVoices();
-        const svVoice = voices.find(v => v.lang.includes('sv'));
-        if (svVoice) {
-          utterance.voice = svVoice;
+      if (speech) {
+        if (selectedLevel === 5) {
+          speech.textContent = "Titta på urtavlan! Kan du lista ut vad klockan är? Svara på valfritt sätt nedan! 🦉";
+        } else if (gameMode === 'explore') {
+          speech.textContent = "Härligt! Dra i klockvisarna och se hur klockan rör sig. Testa en annan svårighetsgrad!";
+        } else if (gameMode === 'challenge') {
+          speech.textContent = "Lyssna noga på Klockis och genomför de tre stegen!";
         }
-        
-        window.speechSynthesis.speak(utterance);
       }
     }
+
+    // Unifierad layout-justerare (Korrigerar gömda kort och låsta paneler)
+    function updateLayoutForLevelAndMode() {
+      const btnExplore = document.getElementById('btn-mode-explore');
+      const btnChallenge = document.getElementById('btn-mode-challenge');
+      const challengeBar = document.getElementById('super-challenge-bar');
+      const exploreBar = document.getElementById('explore-tools-bar');
+      const gameGrid = document.getElementById('game-grid');
+      
+      const cardStep1 = document.getElementById('card-step-1');
+      const cardStep2 = document.getElementById('card-step-2');
+      const cardStep3 = document.getElementById('card-step-3');
+      const cardLevel5 = document.getElementById('card-level-5');
+      
+      const btnCheck1 = document.getElementById('btn-check-step-1');
+
+      if (selectedLevel === 5) {
+        // Avaktivera spellägen tillfälligt
+        if (btnExplore) btnExplore.className = "py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all bg-gray-100 border-gray-200 text-gray-400 pointer-events-none";
+        if (btnChallenge) btnChallenge.className = "py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all bg-gray-100 border-gray-200 text-gray-400 pointer-events-none";
+        
+        // Göm båda de yttre verktygsfälten
+        if (challengeBar) challengeBar.classList.add('hidden');
+        if (exploreBar) exploreBar.classList.add('hidden');
+        
+        // Visa analoga klockan (Step 1) och gissningskortet (Level 5) sida vid sida
+        if (cardLevel5) cardLevel5.classList.remove('hidden');
+        if (cardStep1) cardStep1.classList.remove('hidden');
+        if (cardStep2) cardStep2.classList.add('hidden');
+        if (cardStep3) cardStep3.classList.add('hidden');
+        
+        // 2-kolumnslayout
+        if (gameGrid) gameGrid.className = "grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto items-stretch";
+        if (btnCheck1) btnCheck1.classList.add('hidden');
+        
+        // Se till att klockans visningskort är aktivt
+        if (cardStep1) cardStep1.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
+        isDraggingDisabled = true; // Visarna låsta på nivå 5
+      } else {
+        // ... (Korrekt färg på knapparna)
+        if (btnExplore) btnExplore.className = "py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all " + (gameMode === 'explore' ? "bg-sky-500 text-white border-sky-600 shadow-sm" : "bg-white border-gray-200 text-gray-700 hover:bg-sky-50") + " flex items-center justify-center gap-1";
+        if (btnChallenge) btnChallenge.className = "py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all " + (gameMode === 'challenge' ? "bg-sky-500 text-white border-sky-600 shadow-sm" : "bg-white border-gray-200 text-gray-700 hover:bg-sky-50") + " flex items-center justify-center gap-1";
+        
+        if (cardLevel5) cardLevel5.classList.add('hidden');
+        
+        if (gameMode === 'explore') {
+          if (challengeBar) challengeBar.classList.add('hidden');
+          if (exploreBar) exploreBar.classList.remove('hidden');
+          
+          if (cardStep1) cardStep1.classList.remove('hidden');
+          if (cardStep2) cardStep2.classList.add('hidden');
+          if (cardStep3) cardStep3.classList.add('hidden');
+          if (gameGrid) gameGrid.className = "grid grid-cols-1 gap-3 max-w-sm mx-auto items-center justify-center";
+          if (btnCheck1) btnCheck1.classList.add('hidden');
+          
+          isDraggingDisabled = false;
+          if (cardStep1) cardStep1.className = "bg-white p-3 rounded-2xl shadow-sm border border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
+        } else {
+          // Challenge mode
+          if (challengeBar) challengeBar.classList.remove('hidden');
+          if (exploreBar) exploreBar.classList.add('hidden');
+          
+          if (cardStep1) cardStep1.classList.remove('hidden');
+          if (cardStep2) cardStep2.classList.remove('hidden');
+          if (cardStep3) cardStep3.classList.remove('hidden');
+          if (gameGrid) gameGrid.className = "grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch";
+          if (btnCheck1) btnCheck1.classList.remove('hidden');
+        }
+      }
+    }
+
+    // --- TAB-HANTERARE FÖR NIVÅ 5 ---
+    function setLevel5Tab(tabName) {
+      level5ActiveTab = tabName;
+      playSound('click');
+      
+      const tabs = ['speak', 'digits', 'words'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`btn-tab-${t}`);
+        const panel = document.getElementById(`panel-tab-${t}`);
+        if (btn && panel) {
+          if (t === tabName) {
+            btn.className = "py-1 px-1 text-center font-black text-[10px] rounded-lg bg-white shadow-sm text-sky-600 transition-all";
+            panel.classList.remove('hidden');
+          } else {
+            btn.className = "py-1 px-1 text-center font-black text-[10px] rounded-lg text-slate-600 hover:bg-slate-200 transition-all";
+            panel.classList.add('hidden');
+          }
+        }
+      });
+
+      if (tabName === 'digits') {
+        const hInput = document.getElementById('lvl5-write-hour');
+        if (hInput) hInput.focus();
+      } else if (tabName === 'words') {
+        const wInput = document.getElementById('lvl5-write-text-input');
+        if (wInput) wInput.focus();
+      }
+    }
+
+    // --- RÄTTNINGS- OCH JÄMFÖRELSEFUNKTION FÖR ORD (Bokstavssvar) ---
+    function checkWordAnswer(typedText, targetH, targetM) {
+      let typed = typedText.toLowerCase().trim();
+      typed = typed.replace(/\s+/g, ' '); 
+      typed = typed.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, ""); 
+
+      if (typed.startsWith("klockan är ")) {
+        typed = typed.substring(11).trim();
+      } else if (typed.startsWith("klockan är")) {
+        typed = typed.substring(10).trim();
+      } else if (typed.startsWith("den är ")) {
+        typed = typed.substring(7).trim();
+      } else if (typed.startsWith("den är")) {
+        typed = typed.substring(6).trim();
+      }
+
+      const correctRaw = getSpokenSwedishTime(targetH, targetM, false).toLowerCase().trim();
+      
+      let correctWithDigits = correctRaw;
+      const wordsToDigits = {
+        "ett": "1", "två": "2", "tre": "3", "fyra": "4", "fem": "5", "sex": "6",
+        "sju": "7", "åtta": "8", "nio": "9", "tio": "10", "elva": "11", "tolv": "12"
+      };
+      
+      for (const [word, digit] of Object.entries(wordsToDigits)) {
+        const regex = new RegExp(`\\b${word}\\b`, 'g');
+        correctWithDigits = correctWithDigits.replace(regex, digit);
+      }
+
+      let correctWith24hDigits = correctRaw;
+      const wordsTo24hDigits = {
+        "ett": "13", "två": "14", "tre": "15", "fyra": "16", "fem": "17", "sex": "18",
+        "sju": "19", "åtta": "20", "nio": "21", "tio": "22", "elva": "23", "tolv": "12"
+      };
+      
+      for (const [word, digit] of Object.entries(wordsTo24hDigits)) {
+        const regex = new RegExp(`\\b${word}\\b`, 'g');
+        correctWith24hDigits = correctWith24hDigits.replace(regex, digit);
+      }
+
+      return (typed === correctRaw || typed === correctWithDigits || typed === correctWith24hDigits);
+    }
+
+    // --- KONTROLLER FÖR NIVÅ 5 ---
+    function checkLevel5Digits() {
+      if (selectedLevel !== 5) return;
+      
+      const typedHourStr = document.getElementById('lvl5-write-hour').value.trim();
+      const typedMinStr = document.getElementById('lvl5-write-minute').value.trim();
+
+      if (typedHourStr === '' || typedMinStr === '') {
+        showErrorFeedback("Fyll i både timme och minut först! 😉");
+        return;
+      }
+
+      const typedHour = parseInt(typedHourStr, 10);
+      const typedMin = parseInt(typedMinStr, 10);
+      const targetHour12 = targetTime.hour % 12 === 0 ? 12 : targetTime.hour % 12;
+
+      const isHourCorrect = (typedHour % 12) === (targetHour12 % 12);
+      const isMinCorrect = typedMin === targetTime.minute;
+
+      totalAttempts++;
+      if (isHourCorrect && isMinCorrect) {
+        correctAnswers++;
+        updateStatsUI();
+        triggerWin();
+      } else {
+        updateStatsUI();
+        showErrorFeedback("Oj, det blev inte helt rätt siffror. Försök igen!");
+      }
+    }
+
+    function checkLevel5Words() {
+      if (selectedLevel !== 5) return;
+
+      const typedText = document.getElementById('lvl5-write-text-input').value.trim();
+      if (typedText === '') {
+        showErrorFeedback("Skriv klockslaget med ord först! ✍️");
+        return;
+      }
+
+      totalAttempts++;
+      if (checkWordAnswer(typedText, targetTime.hour, targetTime.minute)) {
+        correctAnswers++;
+        updateStatsUI();
+        triggerWin();
+      } else {
+        updateStatsUI();
+        showErrorFeedback("Oj, det var inte helt rätt skrivet. Försök igen!");
+      }
+    }
+
+    // --- INRIKTADE METODER FÖR KLOCKJUSTERING & GENERERING ---
 
     function speakCurrentClockTime() {
       const isMasked = (gameMode === 'challenge' || selectedLevel === 5);
@@ -526,8 +788,6 @@
       speakText(timeToSpeak);
     }
 
-    // --- HJÄLPFUNKTIONER ---
-    
     // Konverterar klockslag till talat svenskt format
     function getSpokenSwedishTime(h, m, includePrefix = false) {
       let hour12 = h % 12;
@@ -615,6 +875,18 @@
       return { hour: h, minute: m };
     }
 
+    // Slumpar och läser upp tiden i utforskarläget (Nivå 1-4)
+    function randomizeAndSpeakExploreTime() {
+      const randTime = getRandomTime();
+      currentHour = randTime.hour;
+      currentMinute = randTime.minute;
+      updateClockUI();
+      playSound('click');
+      setTimeout(() => {
+        speakCurrentClockTime();
+      }, 250);
+    }
+
     function generateNewTask() {
       targetTime = getRandomTime();
       currentTaskAlreadyAttempted = false; 
@@ -688,152 +960,234 @@
       return (window.self !== window.top) && !isForcedFullscreen;
     }
 
-    // --- UNIFIERAD LAYOUT-JUSTERARE (Korrigerar gömda kort och låsta paneler) ---
-    function updateLayoutForLevelAndMode() {
-      const btnExplore = document.getElementById('btn-mode-explore');
-      const btnChallenge = document.getElementById('btn-mode-challenge');
-      const challengeBar = document.getElementById('super-challenge-bar');
-      const exploreBar = document.getElementById('explore-tools-bar');
-      const gameGrid = document.getElementById('game-grid');
-      
-      const cardStep1 = document.getElementById('card-step-1');
-      const cardStep2 = document.getElementById('card-step-2');
-      const cardStep3 = document.getElementById('card-step-3');
-      const cardLevel5 = document.getElementById('card-level-5');
-      
-      const btnCheck1 = document.getElementById('btn-check-step-1');
+    // --- INITIALISERING ---
+    window.onload = function() {
+      buildClockFace();
+      setupDragAndDrop();
+      setupSpeechRecognition();
 
-      if (selectedLevel === 5) {
-        // Avaktivera spellägen tillfälligt
-        if (btnExplore) btnExplore.className = "py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all bg-gray-100 border-gray-200 text-gray-400 pointer-events-none";
-        if (btnChallenge) btnChallenge.className = "py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all bg-gray-100 border-gray-200 text-gray-400 pointer-events-none";
-        
-        // Göm båda de yttre verktygsfälten
-        if (challengeBar) challengeBar.classList.add('hidden');
-        if (exploreBar) exploreBar.classList.add('hidden');
-        
-        // Visa analoga klockan (Step 1) och gissningskortet (Level 5) sida vid sida
-        if (cardLevel5) cardLevel5.classList.remove('hidden');
-        if (cardStep1) cardStep1.classList.remove('hidden');
-        if (cardStep2) cardStep2.classList.add('hidden');
-        if (cardStep3) cardStep3.classList.add('hidden');
-        
-        // 2-kolumnslayout
-        if (gameGrid) gameGrid.className = "grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto items-stretch";
-        if (btnCheck1) btnCheck1.classList.add('hidden');
-        
-        // Se till att klockans visningskort är aktivt
-        if (cardStep1) cardStep1.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
-        isDraggingDisabled = true; // Visarna låsta på nivå 5
+      setLevel(1);
+      setMode('explore');
+      updateStatsUI();
+    };
+
+    function updateClockUI() {
+      const minuteAngle = currentMinute * 6;
+      const minHand = document.getElementById('minute-hand-group');
+      if (minHand) {
+        minHand.setAttribute('transform', `rotate(${minuteAngle} 200 200)`);
+      }
+
+      const hourAngle = (currentHour % 12) * 30 + currentMinute * 0.5;
+      const hrHand = document.getElementById('hour-hand-group');
+      if (hrHand) {
+        hrHand.setAttribute('transform', `rotate(${hourAngle} 200 200)`);
+      }
+
+      const isMasked = (gameMode === 'challenge' || selectedLevel === 5);
+      const digitalClock = document.getElementById('digital-clock');
+      const spokenText = document.getElementById('spoken-clock-text');
+
+      if (isMasked) {
+        if (digitalClock) digitalClock.textContent = "?? : ??";
+        if (spokenText) spokenText.textContent = "Klockis gömmer svaret! 🤫";
       } else {
-        // Aktivera och färga spellägesknapparna korrekt
-        if (btnExplore) btnExplore.className = "py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all " + (gameMode === 'explore' ? "bg-sky-500 text-white border-sky-600 shadow-sm" : "bg-white border-gray-200 text-gray-700 hover:bg-sky-50") + " flex items-center justify-center gap-1";
-        if (btnChallenge) btnChallenge.className = "py-1 px-1 rounded-xl border font-bold text-xs text-center transition-all " + (gameMode === 'challenge' ? "bg-sky-500 text-white border-sky-600 shadow-sm" : "bg-white border-gray-200 text-gray-700 hover:bg-sky-50") + " flex items-center justify-center gap-1";
-        
-        if (cardLevel5) cardLevel5.classList.add('hidden');
-        
-        if (gameMode === 'explore') {
-          if (challengeBar) challengeBar.classList.add('hidden');
-          if (exploreBar) exploreBar.classList.remove('hidden');
-          
-          if (cardStep1) cardStep1.classList.remove('hidden');
-          if (cardStep2) cardStep2.classList.add('hidden');
-          if (cardStep3) cardStep3.classList.add('hidden');
-          if (gameGrid) gameGrid.className = "grid grid-cols-1 gap-3 max-w-sm mx-auto items-center justify-center";
-          if (btnCheck1) btnCheck1.classList.add('hidden');
-          
-          isDraggingDisabled = false;
-          if (cardStep1) cardStep1.className = "bg-white p-3 rounded-2xl shadow-sm border border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
-        } else {
-          // Challenge mode
-          if (challengeBar) challengeBar.classList.remove('hidden');
-          if (exploreBar) exploreBar.classList.add('hidden');
-          
-          if (cardStep1) cardStep1.classList.remove('hidden');
-          if (cardStep2) cardStep2.classList.remove('hidden');
-          if (cardStep3) cardStep3.classList.remove('hidden');
-          if (gameGrid) gameGrid.className = "grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch";
-          if (btnCheck1) btnCheck1.classList.remove('hidden');
-        }
+        const formattedHour = String(currentHour).padStart(2, '0');
+        const formattedMinute = String(currentMinute).padStart(2, '0');
+        if (digitalClock) digitalClock.textContent = `${formattedHour}:${formattedMinute}`;
+        if (spokenText) spokenText.textContent = getSpokenSwedishTime(currentHour, currentMinute, true);
       }
     }
 
-    // --- TAB-HANTERARE FÖR NIVÅ 5 ---
-    function setLevel5Tab(tabName) {
-      level5ActiveTab = tabName;
-      playSound('click');
-      
-      const tabs = ['speak', 'digits', 'words'];
-      tabs.forEach(t => {
-        const btn = document.getElementById(`btn-tab-${t}`);
-        const panel = document.getElementById(`panel-tab-${t}`);
-        if (btn && panel) {
-          if (t === tabName) {
-            btn.className = "py-1 px-1 text-center font-black text-[10px] rounded-lg bg-white shadow-sm text-sky-600 transition-all";
-            panel.classList.remove('hidden');
+    function updateStatsUI() {
+      const headerStats = document.getElementById('header-stats');
+      if (headerStats) {
+        headerStats.textContent = `${correctAnswers} av ${totalAttempts} rätt`;
+      }
+
+      const statsSummary = document.getElementById('stats-verbal-summary');
+      const progressBar = document.getElementById('stats-progress-bar');
+
+      if (totalAttempts === 0) {
+        if (statsSummary) statsSummary.textContent = "Gör en uppgift!";
+        if (progressBar) {
+          progressBar.style.width = "0%";
+          progressBar.className = "bg-amber-600 h-full w-0 transition-all duration-500";
+        }
+      } else {
+        if (statsSummary) {
+          statsSummary.innerHTML = `Resultat: <span class="font-extrabold text-emerald-855">${correctAnswers}</span> av <span class="font-extrabold text-slate-800">${totalAttempts}</span> rätt!`;
+        }
+        
+        const percentage = Math.round((correctAnswers / totalAttempts) * 100);
+        if (progressBar) {
+          progressBar.style.width = `${percentage}%`;
+
+          if (percentage < 50) {
+            progressBar.className = "bg-red-400 h-full transition-all duration-500";
+          } else if (percentage < 80) {
+            progressBar.className = "bg-amber-400 h-full transition-all duration-500";
           } else {
-            btn.className = "py-1 px-1 text-center font-black text-[10px] rounded-lg text-slate-600 hover:bg-slate-200 transition-all";
-            panel.classList.add('hidden');
+            progressBar.className = "bg-emerald-500 h-full transition-all duration-500";
           }
         }
-      });
+      }
 
-      if (tabName === 'digits') {
-        const hInput = document.getElementById('lvl5-write-hour');
-        if (hInput) hInput.focus();
-      } else if (tabName === 'words') {
-        const wInput = document.getElementById('lvl5-write-text-input');
-        if (wInput) wInput.focus();
+      const modalStatsRatio = document.getElementById('modal-stats-ratio');
+      if (modalStatsRatio) {
+        modalStatsRatio.textContent = `${correctAnswers} av ${totalAttempts}`;
       }
     }
 
-    // --- KONTROLLER FÖR NIVÅ 5 ---
-    function checkLevel5Digits() {
-      if (selectedLevel !== 5) return;
+    // --- INTERAKTIV DRAGNING AV VISARE ---
+    function setupDragAndDrop() {
+      const clockSvg = document.getElementById('clock-svg');
+      if (!clockSvg) return;
       
-      const typedHourStr = document.getElementById('lvl5-write-hour').value.trim();
-      const typedMinStr = document.getElementById('lvl5-write-minute').value.trim();
+      const handleStart = (e) => {
+        if (isDraggingDisabled) return; 
+        
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        const rect = clockSvg.getBoundingClientRect();
+        const x = clientX - rect.left - rect.width / 2;
+        const y = clientY - rect.top - rect.height / 2;
+        
+        const dist = Math.sqrt(x*x + y*y);
+        if (dist < 30) return;
 
-      if (typedHourStr === '' || typedMinStr === '') {
-        showErrorFeedback("Fyll i både timme och minut först! 😉");
-        return;
-      }
+        const angleRad = Math.atan2(x, -y);
+        let angleDeg = angleRad * 180 / Math.PI;
+        if (angleDeg < 0) angleDeg += 360;
 
-      const typedHour = parseInt(typedHourStr, 10);
-      const typedMin = parseInt(typedMinStr, 10);
-      const targetHour12 = targetTime.hour % 12 === 0 ? 12 : targetTime.hour % 12;
+        const currentMinAngle = currentMinute * 6;
+        const currentHourAngle = (currentHour % 12) * 30 + currentMinute * 0.5;
 
-      const isHourCorrect = (typedHour % 12) === (targetHour12 % 12);
-      const isMinCorrect = typedMin === targetTime.minute;
+        const diffMin = Math.min(Math.abs(angleDeg - currentMinAngle), 360 - Math.abs(angleDeg - currentMinAngle));
+        const diffHour = Math.min(Math.abs(angleDeg - currentHourAngle), 360 - Math.abs(angleDeg - currentHourAngle));
 
-      totalAttempts++;
-      if (isHourCorrect && isMinCorrect) {
-        correctAnswers++;
-        updateStatsUI();
-        triggerWin();
-      } else {
-        updateStatsUI();
-        showErrorFeedback("Oj, det blev inte helt rätt siffror. Försök igen!");
-      }
+        if (diffMin < diffHour) {
+          isDragging = 'minute';
+        } else {
+          isDragging = 'hour';
+        }
+        
+        handleMove(e);
+      };
+
+      const handleMove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        const rect = clockSvg.getBoundingClientRect();
+        const x = clientX - rect.left - rect.width / 2;
+        const y = clientY - rect.top - rect.height / 2;
+
+        const angleRad = Math.atan2(x, -y);
+        let angleDeg = angleRad * 180 / Math.PI;
+        if (angleDeg < 0) angleDeg += 360;
+
+        if (isDragging === 'minute') {
+          let min = Math.round(angleDeg / 6) % 60;
+          
+          if (selectedLevel === 1) {
+            min = 0; 
+          } else if (selectedLevel === 2) {
+            min = Math.round(min / 30) * 30 % 60; 
+          } else if (selectedLevel === 3) {
+            min = Math.round(min / 15) * 15 % 60; 
+          } else {
+            min = Math.round(min / 5) * 5 % 60; 
+          }
+
+          if (min !== currentMinute) {
+            currentMinute = min;
+            playSound('click');
+            updateClockUI();
+          }
+        } else if (isDragging === 'hour') {
+          let hr = Math.round(angleDeg / 30);
+          if (hr === 0) hr = 12;
+
+          if (hr !== currentHour) {
+            currentHour = hr;
+            playSound('click');
+            updateClockUI();
+          }
+        }
+      };
+
+      const handleEnd = () => {
+        isDragging = null;
+      };
+
+      clockSvg.addEventListener('mousedown', handleStart);
+      window.addEventListener('mousemove', handleMove);
+      window.addEventListener('mouseup', handleEnd);
+
+      clockSvg.addEventListener('touchstart', handleStart, { passive: false });
+      window.addEventListener('touchmove', handleMove, { passive: false });
+      window.addEventListener('touchend', handleEnd);
     }
 
-    function checkLevel5Words() {
-      if (selectedLevel !== 5) return;
+    function updateStepCardsUI() {
+      const c1 = document.getElementById('card-step-1');
+      const c2 = document.getElementById('card-step-2');
+      const c3 = document.getElementById('card-step-3');
 
-      const typedText = document.getElementById('lvl5-write-text-input').value.trim();
-      if (typedText === '') {
-        showErrorFeedback("Skriv klockslaget med ord först! ✍️");
-        return;
-      }
+      const b1 = document.getElementById('badge-step-1');
+      const b2 = document.getElementById('badge-step-2');
+      const b3 = document.getElementById('badge-step-3');
 
-      totalAttempts++;
-      if (checkWordAnswer(typedText, targetTime.hour, targetTime.minute)) {
-        correctAnswers++;
-        updateStatsUI();
-        triggerWin();
-      } else {
-        updateStatsUI();
-        showErrorFeedback("Oj, det var inte helt rätt skrivet. Försök igen!");
+      const btn1 = document.getElementById('btn-check-step-1');
+      const btn2 = document.getElementById('btn-check-step-2');
+      const btn3 = document.getElementById('btn-check-step-3');
+
+      const instr = document.getElementById('super-challenge-instruction');
+
+      if (c1) c1.className = "bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-between relative transition-all duration-300 opacity-40 pointer-events-none";
+      if (c2) c2.className = "bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-between relative transition-all duration-300 opacity-40 pointer-events-none";
+      if (c3) c3.className = "bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-between relative transition-all duration-300 opacity-40 pointer-events-none";
+
+      if (b1) b1.classList.add('hidden');
+      if (b2) b2.classList.add('hidden');
+      if (b3) b3.classList.add('hidden');
+
+      if (btn1) btn1.className = "w-full mt-2.5 py-1.5 px-3 bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-all pointer-events-none";
+      if (btn2) btn2.className = "w-full py-1.5 px-3 bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-all pointer-events-none";
+      if (btn3) btn3.className = "w-full py-1.5 px-3 bg-slate-200 text-slate-400 font-bold rounded-xl text-xs transition-all pointer-events-none";
+
+      if (superStep === 1) {
+        if (c1) c1.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (btn1) btn1.className = "w-full mt-2.5 py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
+        if (instr) instr.textContent = "⏰ Steg 1: Ställ in visarna på rätt klockslag!";
+        isDraggingDisabled = false; 
+      } else if (superStep === 2) {
+        if (c1) c1.className = "bg-white/80 p-3 rounded-2xl border border-emerald-200 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (b1) b1.classList.remove('hidden');
+        isDraggingDisabled = true; 
+
+        if (c2) c2.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (btn2) btn2.className = "w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
+        if (instr) instr.textContent = "🔢 Steg 2: Skriv in klockslaget med siffror!";
+        const inputHour = document.getElementById('super-write-hour');
+        if (inputHour) inputHour.focus();
+      } else if (superStep === 3) {
+        if (c1) c1.className = "bg-white/80 p-3 rounded-2xl border border-emerald-200 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (c2) c2.className = "bg-white/80 p-3 rounded-2xl border border-emerald-200 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (b1) b1.classList.remove('hidden');
+        if (b2) b2.classList.remove('hidden');
+        isDraggingDisabled = true; 
+
+        if (c3) c3.className = "bg-white p-3 rounded-2xl shadow border-2 border-emerald-500 flex flex-col items-center justify-between relative transition-all duration-300";
+        if (btn3) btn3.className = "w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-550 active:scale-95 text-slate-955 font-black rounded-xl shadow-sm text-xs transition-all cursor-pointer";
+        if (instr) instr.textContent = "✍️ Steg 3: Skriv klockslaget med bokstäver!";
+        const inputWords = document.getElementById('super-write-text-input');
+        if (inputWords) inputWords.focus();
       }
     }
 
@@ -1115,17 +1469,29 @@
         if (micIconLvl5) micIconLvl5.textContent = "🔴";
         if (micTextLvl5) micTextLvl5.textContent = "Lyssnar...";
       } else {
-        if (micBtn) micBtn.classList.remove('mic-recording');
+        if (micBtn) micBtn.className = "flex items-center gap-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-250 font-black px-3 py-1.5 rounded-xl shadow-sm text-xs transition-all cursor-pointer";
         if (micIcon) micIcon.textContent = "🎙️";
         if (micText) micText.textContent = "Tala till klockan";
 
         if (micBtnLvl5) {
-          micBtnLvl5.classList.remove('mic-recording');
-          micBtnLvl5.classList.add('bg-sky-500', 'hover:bg-sky-600');
+          micBtnLvl5.className = "flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 text-white font-black px-4 py-2 rounded-xl shadow-md text-xs transition-all active:scale-95";
         }
         if (micIconLvl5) micIconLvl5.textContent = "🎙️";
         if (micTextLvl5) micTextLvl5.textContent = "Klicka & Prata";
       }
+    }
+
+    function showErrorFeedback(msg) {
+      playSound('fail');
+      const bubble = document.getElementById('klockis-speech-bubble');
+      const speech = document.getElementById('klockis-speech');
+      if (bubble) {
+        bubble.classList.add('border-red-300', 'bg-red-50');
+      }
+      if (speech) {
+        speech.textContent = msg;
+      }
+      speakText(msg);
     }
 
     // Smart rösttolknings-algoritm (Buggfixad för tidsartiklar och förberedd för Nivå 5!)
@@ -1296,8 +1662,32 @@
       speakText(speechTextToDisplay.split('.')[1] || speechTextToDisplay);
     }
 
+    // Extrahörsel för timmar
+    function extractHour(word) {
+      if (!word) return null;
+      const cleaned = word.toLowerCase().trim();
+      if (svWordsToNumbers[cleaned] !== undefined) return svWordsToNumbers[cleaned];
+      const num = parseInt(cleaned, 10);
+      if (!isNaN(num)) {
+        let h = num % 12;
+        return h === 0 ? 12 : h;
+      }
+      return null;
+    }
+
+    // Extrahörsel för minuter
+    function extractMinutes(word) {
+      if (!word) return null;
+      const cleaned = word.toLowerCase().trim();
+      if (svWordsToMinutes[cleaned] !== undefined) return svWordsToMinutes[cleaned];
+      const num = parseInt(cleaned, 10);
+      if (!isNaN(num) && num >= 0 && num < 60) return num;
+      return null;
+    }
+
     function setLevel(lvl) {
       selectedLevel = lvl;
+      // Använd direkt anrop till playSound (som nu är laddad först!)
       playSound('click');
       
       for (let i = 1; i <= 5; i++) {
